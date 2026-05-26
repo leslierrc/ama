@@ -1,0 +1,166 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400&display=swap');
+@import "tailwindcss";
+@plugin "tailwindcss-animate";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme inline {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-heading: "Inter", ui-sans-serif, system-ui, sans-serif;
+
+  --color-background: #020408;
+  --color-foreground: #ffffff;
+
+  --color-card: #0b1120;
+  --color-card-foreground: #ffffff;
+
+  --color-popover: #0b1120;
+  --color-popover-foreground: #ffffff;
+
+  --color-primary: #0055ff;
+  --color-primary-foreground: #ffffff;
+
+  --color-secondary: #ff2d55;
+  --color-secondary-foreground: #ffffff;
+
+  --color-muted: #1e293b;
+  --color-muted-foreground: #94a3b8;
+
+  --color-accent: #ffffff;
+  --color-accent-foreground: #020408;
+
+  --color-destructive: #ef4444;
+  --color-destructive-foreground: #ffffff;
+
+  --color-border: rgba(255, 255, 255, 0.1);
+  --color-input: rgba(255, 255, 255, 0.1);
+  --color-ring: #0055ff;
+
+  --radius-lg: 0.75rem;
+  --radius-md: calc(0.75rem - 2px);
+  --radius-sm: calc(0.75rem - 4px);
+
+  --animate-accordion-down: accordion-down 0.2s ease-out;
+  --animate-accordion-up: accordion-up 0.2s ease-out;
+  --animate-marquee: marquee 25s linear infinite;
+  --animate-glow: glow 2s ease-in-out infinite alternate;
+
+  @keyframes accordion-down {
+    from { height: 0; }
+    to { height: var(--radix-accordion-content-height); }
+  }
+  @keyframes accordion-up {
+    from { height: var(--radix-accordion-content-height); }
+    to { height: 0; }
+  }
+  @keyframes marquee {
+    0% { transform: translateX(0%); }
+    100% { transform: translateX(-50%); }
+  }
+  @keyframes glow {
+    from { box-shadow: 0 0 5px rgba(0, 85, 255, 0.2), 0 0 10px rgba(0, 85, 255, 0.1); }
+    to { box-shadow: 0 0 20px rgba(0, 85, 255, 0.6), 0 0 30px rgba(0, 85, 255, 0.3); }
+  }
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+    outline-color: var(--color-ring);
+  }
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Improved focus visibility */
+  :focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+  }
+
+  /* Responsive image fallback behavior */
+  img:not([src]), img[src=""] {
+    position: relative;
+    overflow: hidden;
+    background-color: var(--color-muted);
+  }
+  img:not([src])::after, img[src=""]::after {
+    content: "Image unavailable";
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    font-size: 0.75rem;
+    color: var(--color-muted-foreground);
+    background-color: var(--color-muted);
+  }
+}
+
+@layer components {
+  .glass {
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .glass-dark {
+    background: rgba(11, 17, 32, 0.7);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+  }
+
+  .glow-primary {
+    box-shadow: 0 0 15px rgba(0, 85, 255, 0.4);
+    transition: box-shadow 0.3s ease;
+  }
+  .glow-primary:hover {
+    box-shadow: 0 0 25px rgba(0, 85, 255, 0.7);
+  }
+
+  .glow-secondary {
+    box-shadow: 0 0 15px rgba(255, 45, 85, 0.4);
+    transition: box-shadow 0.3s ease;
+  }
+  .glow-secondary:hover {
+    box-shadow: 0 0 25px rgba(255, 45, 85, 0.7);
+  }
+
+  .text-gradient-ama {
+    background: linear-gradient(90deg, #ffffff 0%, #0055ff 50%, #ff2d55 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .bg-gradient-mesh {
+    background: radial-gradient(at 0% 0%, rgba(0, 85, 255, 0.15) 0%, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(255, 45, 85, 0.1) 0%, transparent 50%);
+  }
+
+  .ama-logo-a-white { color: #ffffff; }
+  .ama-logo-m-blue { color: #0055ff; }
+  .ama-logo-a-red { color: #ff2d55; }
+}
+
+@layer utilities {
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  
+  .mask-fade-out {
+    mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
+  }
+}
