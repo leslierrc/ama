@@ -486,7 +486,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               <div className="rounded-xl overflow-hidden" style={{ backgroundColor: 'white', border: '1px solid #e6e3d3' }}>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
-                    <thead><tr style={{ backgroundColor: '#f8f4e4' }}><TH>#</TH><TH>Cliente</TH><TH>Teléfono</TH><TH>Total</TH><TH>Pago</TH><TH>Estado</TH><TH>Fecha</TH><TH></TH></tr></thead>
+                    <thead><tr style={{ backgroundColor: '#f8f4e4' }}><TH>#</TH><TH>Cliente</TH><TH>Teléfono</TH><TH>Total</TH><TH>Pago</TH><TH>Estado</TH><TH>Fecha</TH><TH children={undefined}></TH></tr></thead>
                     <tbody>
                       {filteredOrders.map(o => (
                         <React.Fragment key={o.id}>
