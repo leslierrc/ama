@@ -6,16 +6,14 @@ import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 
 type Section = 'dashboard' | 'products' | 'combos' | 'orders' | 'customers' | 'settings';
+interface AdminDashboardProps { onLogout: () => void; }
 
-interface AdminDashboardProps {
-  onLogout: () => void;
-}
-
+// ── Status helpers ────────────────────────────────────────────────────────────
 const STATUS_LABELS: Record<string, string> = {
   pending: 'Pendiente', paid: 'Pagado', processing: 'Procesando',
   delivered: 'Entregado', cancelled: 'Cancelado',
 };
-const STATUS_COLORS: Record<string, { backgroundColor: string; color: string }> = {
+const STATUS_COLORS: Record<string, React.CSSProperties> = {
   pending:    { backgroundColor: 'rgba(217,119,6,0.12)',  color: '#d97706' },
   paid:       { backgroundColor: 'rgba(16,185,129,0.12)', color: '#059669' },
   processing: { backgroundColor: 'rgba(59,130,246,0.12)', color: '#2563eb' },
@@ -23,11 +21,46 @@ const STATUS_COLORS: Record<string, { backgroundColor: string; color: string }> 
   cancelled:  { backgroundColor: 'rgba(186,26,26,0.12)',  color: '#ba1a1a' },
 };
 
+// ── Shared input style ────────────────────────────────────────────────────────
 const inp: React.CSSProperties = {
   backgroundColor: '#f8f4e4', border: '1px solid #bfc9c3', color: '#1c1c13',
   borderRadius: '0.75rem', padding: '10px 14px', width: '100%', fontSize: '14px',
   outline: 'none', transition: 'border-color 0.2s',
 };
+
+// ── Table helpers — defined OUTSIDE component to avoid TS2741 ─────────────────
+const TH: React.FC<{ children?: React.ReactNode }> = ({ children }) => (
+  <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-widest"
+    style={{ color: '#404944' }}>{children}</th>
+);
+const TR: React.FC<{ children: React.ReactNode; onClick?: () => void }> = ({ children, onClick }) => (
+  <tr className="border-t transition-colors"
+    style={{ borderColor: '#f2eede', cursor: onClick ? 'pointer' : 'default' }}
+    onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#fdf9e9')}
+    onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
+    onClick={onClick}>{children}</tr>
+);
+const TD: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className = '' }) => (
+  <td className={`px-4 py-3 ${className}`}>{children}</td>
+);
+const Toggle: React.FC<{ checked: boolean; onChange: () => void }> = ({ checked, onChange }) => (
+  <button onClick={onChange} className="relative w-10 h-5 rounded-full transition-colors shrink-0"
+    style={{ backgroundColor: checked ? '#003527' : '#bfc9c3' }}>
+    <span className="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all duration-200"
+      style={{ left: checked ? '22px' : '2px' }} />
+  </button>
+);
+const Field: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
+  <div className="flex flex-col gap-1">
+    <label className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#404944' }}>{label}</label>
+    {children}
+  </div>
+);
+const TextInput: React.FC<{ value: string | number; onChange: (v: string) => void; placeholder?: string; type?: string }> = ({ value, onChange, placeholder, type = 'text' }) => (
+  <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} style={inp}
+    onFocus={e => (e.currentTarget.style.borderColor = '#003527')}
+    onBlur={e => (e.currentTarget.style.borderColor = '#bfc9c3')} />
+);
 
 // ── Export helpers ────────────────────────────────────────────────────────────
 const exportOrdersPDF = (orders: DbOrder[]) => {
@@ -50,19 +83,17 @@ const exportOrdersPDF = (orders: DbOrder[]) => {
   });
   doc.save('pedidos-ama.pdf');
 };
-
 const exportOrdersXLSX = (orders: DbOrder[]) => {
   const ws = XLSX.utils.json_to_sheet(orders.map(o => ({
-    'Número': o.order_number, 'Cliente': o.customer_name, 'Teléfono': o.customer_phone,
-    'Dirección': o.delivery_address, 'Total CUP': o.total,
-    'Método': o.payment_method, 'Estado': STATUS_LABELS[o.status] || o.status,
-    'Fecha': new Date(o.created_at).toLocaleDateString('es-ES'),
+    Número: o.order_number, Cliente: o.customer_name, Teléfono: o.customer_phone,
+    Dirección: o.delivery_address, 'Total CUP': o.total,
+    Método: o.payment_method, Estado: STATUS_LABELS[o.status] || o.status,
+    Fecha: new Date(o.created_at).toLocaleDateString('es-ES'),
   })));
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Pedidos');
   XLSX.writeFile(wb, 'pedidos-ama.xlsx');
 };
-
 const exportProductsPDF = (products: DbProduct[]) => {
   const doc = new jsPDF();
   doc.setFont('helvetica', 'bold'); doc.setFontSize(18);
@@ -75,7 +106,6 @@ const exportProductsPDF = (products: DbProduct[]) => {
   });
   doc.save('productos-ama.pdf');
 };
-
 const exportProductsXLSX = (products: DbProduct[]) => {
   const ws = XLSX.utils.json_to_sheet(products.map(p => ({
     Nombre: p.name, Descripción: p.description, Categoría: p.category,
@@ -86,29 +116,7 @@ const exportProductsXLSX = (products: DbProduct[]) => {
   XLSX.writeFile(wb, 'productos-ama.xlsx');
 };
 
-// ── Shared field components ───────────────────────────────────────────────────
-const Field = ({ label, children }: { label: string; children: React.ReactNode }) => (
-  <div className="flex flex-col gap-1">
-    <label className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#404944' }}>{label}</label>
-    {children}
-  </div>
-);
-
-const TextInput = ({ value, onChange, placeholder, type = 'text' }: { value: string | number; onChange: (v: string) => void; placeholder?: string; type?: string }) => (
-  <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} style={inp}
-    onFocus={e => (e.currentTarget.style.borderColor = '#003527')}
-    onBlur={e => (e.currentTarget.style.borderColor = '#bfc9c3')} />
-);
-
-const Toggle = ({ checked, onChange }: { checked: boolean; onChange: () => void }) => (
-  <button onClick={onChange} className="relative w-10 h-5 rounded-full transition-colors shrink-0"
-    style={{ backgroundColor: checked ? '#003527' : '#bfc9c3' }}>
-    <span className="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all duration-200"
-      style={{ left: checked ? '22px' : '2px' }} />
-  </button>
-);
-
-// ── Main component ────────────────────────────────────────────────────────────
+// ── Main Dashboard ────────────────────────────────────────────────────────────
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   const [section, setSection] = useState<Section>('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -117,7 +125,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   const [combos, setCombos] = useState<DbCombo[]>([]);
   const [orders, setOrders] = useState<DbOrder[]>([]);
   const [loading, setLoading] = useState(true);
-
   const [stats, setStats] = useState({ totalSales: 0, ordersToday: 0, activeProducts: 0, pendingOrders: 0 });
 
   const [showProductModal, setShowProductModal] = useState(false);
@@ -131,16 +138,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   const [settingsForm, setSettingsForm] = useState<Record<string, string>>({});
   const [settingsSaved, setSettingsSaved] = useState(false);
 
-  // ── Auth + load ───────────────────────────────────────────
-  useEffect(() => {
-    const check = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) { onLogout(); return; }
-      loadAll();
-    };
-    check();
-  }, [onLogout]);
-
+  // ── Auth check ────────────────────────────────────────────
   const loadAll = useCallback(async () => {
     setLoading(true);
     try {
@@ -166,6 +164,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     } finally { setLoading(false); }
   }, []);
 
+  // ── Auth check — after loadAll so deps are satisfied ─────
+  useEffect(() => {
+    const check = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { onLogout(); return; }
+      loadAll();
+    };
+    check();
+  }, [onLogout, loadAll]);
+
   const handleLogout = async () => { await supabase.auth.signOut(); onLogout(); };
 
   // ── Product CRUD ──────────────────────────────────────────
@@ -181,12 +189,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     else await supabase.from('products').insert(payload);
     setShowProductModal(false); setEditingProduct(null); loadAll();
   };
-
   const deleteProduct = async (id: string) => {
     if (!confirm('¿Eliminar este producto?')) return;
     await supabase.from('products').delete().eq('id', id); loadAll();
   };
-
   const toggleProductActive = async (p: DbProduct) => {
     await supabase.from('products').update({ active: !p.active }).eq('id', p.id); loadAll();
   };
@@ -204,7 +210,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     else await supabase.from('combos').insert(payload);
     setShowComboModal(false); setEditingCombo(null); loadAll();
   };
-
   const deleteCombo = async (id: string) => {
     if (!confirm('¿Eliminar este combo?')) return;
     await supabase.from('combos').delete().eq('id', id); loadAll();
@@ -234,9 +239,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     }, {} as Record<string, { name: string; phone: string; count: number; total: number }>)
   ).sort((a, b) => b.total - a.total);
 
-  const filteredOrders = orderFilter === 'Todos'
-    ? orders
-    : orders.filter(o => STATUS_LABELS[o.status] === orderFilter);
+  const filteredOrders = orderFilter === 'Todos' ? orders : orders.filter(o => STATUS_LABELS[o.status] === orderFilter);
 
   const navItems: { id: Section; icon: string; label: string }[] = [
     { id: 'dashboard', icon: 'dashboard', label: 'Dashboard' },
@@ -246,20 +249,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     { id: 'customers', icon: 'people', label: 'Clientes' },
     { id: 'settings', icon: 'settings', label: 'Configuración' },
   ];
-
-  // ── Shared table header ───────────────────────────────────
-  const TH = ({ children }: { children: React.ReactNode }) => (
-    <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-widest" style={{ color: '#404944' }}>{children}</th>
-  );
-  const TR = ({ children, onClick }: { children: React.ReactNode; onClick?: () => void }) => (
-    <tr className="border-t transition-colors" style={{ borderColor: '#f2eede', cursor: onClick ? 'pointer' : 'default' }}
-      onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#fdf9e9')}
-      onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
-      onClick={onClick}>{children}</tr>
-  );
-  const TD = ({ children, className = '' }: { children: React.ReactNode; className?: string }) => (
-    <td className={`px-4 py-3 ${className}`}>{children}</td>
-  );
 
   return (
     <div className="flex min-h-screen" style={{ backgroundColor: '#fdf9e9', color: '#1c1c13' }}>
@@ -277,14 +266,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
           {navItems.map(item => (
             <button key={item.id} onClick={() => { setSection(item.id); setSidebarOpen(false); }}
               className="flex items-center gap-3 px-4 py-3 rounded-xl text-left text-sm font-medium transition-all"
-              style={{
-                backgroundColor: section === item.id ? 'rgba(255,255,255,0.15)' : 'transparent',
-                color: section === item.id ? 'white' : 'rgba(255,255,255,0.65)',
-              }}
+              style={{ backgroundColor: section === item.id ? 'rgba(255,255,255,0.15)' : 'transparent', color: section === item.id ? 'white' : 'rgba(255,255,255,0.65)' }}
               onMouseEnter={e => { if (section !== item.id) (e.currentTarget as HTMLElement).style.backgroundColor = 'rgba(255,255,255,0.08)'; }}
               onMouseLeave={e => { if (section !== item.id) (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent'; }}>
-              <span className="material-symbols-outlined text-[20px]">{item.icon}</span>
-              {item.label}
+              <span className="material-symbols-outlined text-[20px]">{item.icon}</span>{item.label}
             </button>
           ))}
         </nav>
@@ -294,8 +279,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
             style={{ color: 'rgba(255,255,255,0.65)' }}
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.backgroundColor = 'rgba(186,26,26,0.2)'; (e.currentTarget as HTMLElement).style.color = '#fca5a5'; }}
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent'; (e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.65)'; }}>
-            <span className="material-symbols-outlined text-[20px]">logout</span>
-            Cerrar Sesión
+            <span className="material-symbols-outlined text-[20px]">logout</span>Cerrar Sesión
           </button>
         </div>
       </aside>
@@ -304,7 +288,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
 
       {/* ── Main ── */}
       <div className="flex-1 flex flex-col md:ml-[240px]">
-        {/* Top bar */}
         <header className="sticky top-0 z-20 flex items-center justify-between px-5 md:px-8 py-4 border-b"
           style={{ backgroundColor: 'rgba(253,249,233,0.95)', backdropFilter: 'blur(8px)', borderColor: '#e6e3d3' }}>
           <div className="flex items-center gap-4">
@@ -333,7 +316,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                   { label: 'Ventas Totales', value: `CUP $${stats.totalSales.toLocaleString('es-CU')}`, icon: 'payments', color: '#003527' },
                   { label: 'Pedidos Hoy', value: stats.ordersToday, icon: 'today', color: '#9b4500' },
                   { label: 'Productos Activos', value: stats.activeProducts, icon: 'inventory_2', color: '#059669' },
-                  { label: 'Pedidos Pendientes', value: stats.pendingOrders, icon: 'pending_actions', color: '#d97706' },
+                  { label: 'Pendientes', value: stats.pendingOrders, icon: 'pending_actions', color: '#d97706' },
                 ].map(s => (
                   <div key={s.label} className="rounded-xl p-5 flex flex-col gap-3"
                     style={{ backgroundColor: 'white', border: '1px solid #e6e3d3', boxShadow: '0 2px 8px rgba(0,53,39,0.06)' }}>
@@ -345,7 +328,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                   </div>
                 ))}
               </div>
-
               <div className="rounded-xl overflow-hidden" style={{ backgroundColor: 'white', border: '1px solid #e6e3d3' }}>
                 <div className="px-6 py-4 border-b" style={{ borderColor: '#e6e3d3' }}>
                   <h2 className="font-semibold" style={{ color: '#003527', fontFamily: 'Playfair Display, Georgia, serif' }}>Pedidos Recientes</h2>
@@ -359,13 +341,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                           <TD><span className="font-mono text-xs" style={{ color: '#003527' }}>{o.order_number}</span></TD>
                           <TD><span className="font-medium">{o.customer_name}</span></TD>
                           <TD><span className="font-semibold" style={{ color: '#9b4500' }}>CUP ${Number(o.total).toLocaleString('es-CU')}</span></TD>
-                          <TD><span className="px-2 py-1 rounded-full text-xs font-semibold" style={STATUS_COLORS[o.status] || { backgroundColor: '#eee', color: '#333' }}>{STATUS_LABELS[o.status] || o.status}</span></TD>
+                          <TD><span className="px-2 py-1 rounded-full text-xs font-semibold" style={STATUS_COLORS[o.status] || {}}>{STATUS_LABELS[o.status] || o.status}</span></TD>
                           <TD><span className="text-xs" style={{ color: '#404944' }}>{new Date(o.created_at).toLocaleDateString('es-ES')}</span></TD>
                         </TR>
                       ))}
-                      {orders.length === 0 && !loading && (
-                        <tr><td colSpan={5} className="px-4 py-8 text-center text-sm" style={{ color: '#404944' }}>No hay pedidos aún</td></tr>
-                      )}
+                      {orders.length === 0 && !loading && <tr><td colSpan={5} className="px-4 py-8 text-center text-sm" style={{ color: '#404944' }}>No hay pedidos aún</td></tr>}
                     </tbody>
                   </table>
                 </div>
@@ -413,7 +393,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                           </TD>
                         </TR>
                       ))}
-                      {products.length === 0 && !loading && <tr><td colSpan={7} className="px-4 py-8 text-center text-sm" style={{ color: '#404944' }}>No hay productos</td></tr>}
+                      {products.length === 0 && !loading && <tr><td colSpan={7} className="px-4 py-8 text-center text-sm" style={{ color: '#404944' }}>No hay productos. Crea uno con el botón de arriba.</td></tr>}
                     </tbody>
                   </table>
                 </div>
@@ -486,7 +466,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               <div className="rounded-xl overflow-hidden" style={{ backgroundColor: 'white', border: '1px solid #e6e3d3' }}>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
-                    <thead><tr style={{ backgroundColor: '#f8f4e4' }}><TH>#</TH><TH>Cliente</TH><TH>Teléfono</TH><TH>Total</TH><TH>Pago</TH><TH>Estado</TH><TH>Fecha</TH><TH children={undefined}></TH></tr></thead>
+                    <thead><tr style={{ backgroundColor: '#f8f4e4' }}><TH>#</TH><TH>Cliente</TH><TH>Teléfono</TH><TH>Total</TH><TH>Pago</TH><TH>Estado</TH><TH>Fecha</TH><TH></TH></tr></thead>
                     <tbody>
                       {filteredOrders.map(o => (
                         <React.Fragment key={o.id}>
@@ -504,7 +484,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                             <TD>
                               <select value={o.status} onChange={e => updateOrderStatus(o.id, e.target.value)}
                                 className="rounded-lg px-2 py-1 text-xs font-semibold cursor-pointer border-none"
-                                style={{ ...(STATUS_COLORS[o.status] || { backgroundColor: '#eee', color: '#333' }), outline: 'none' }}>
+                                style={{ ...(STATUS_COLORS[o.status] || {}), outline: 'none' }}>
                                 {Object.entries(STATUS_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                               </select>
                             </TD>

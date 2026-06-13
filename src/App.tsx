@@ -49,13 +49,14 @@ export default function App() {
   };
 
   const isAdminPage = currentPage === 'admin-login' || currentPage === 'admin';
-
+console.log("PAYPAL CLIENT:", PAYPAL_CLIENT_ID);
   return (
     <PayPalScriptProvider
       options={{
         clientId: PAYPAL_CLIENT_ID,
         currency: 'USD',
         intent: 'capture',
+        components: 'buttons',
       }}
     >
       <CartProvider>
