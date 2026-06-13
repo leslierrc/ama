@@ -8,7 +8,6 @@ import { ShoppingCart } from '@/components/generated/ShoppingCart';
 import { CartProvider } from '@/hooks/useCart';
 import { WhatsAppButton } from '@/components/generated/WhatsAppButton';
 
-// Lazy load admin to keep bundle small and avoid circular issues
 const AdminLogin = lazy(() =>
   import('@/components/admin/AdminLogin').then(m => ({ default: m.AdminLogin }))
 );
@@ -22,16 +21,18 @@ export type FilterCategory = 'Todos' | 'Mercado' | 'Combos' | 'Electrodoméstico
 document.documentElement.classList.remove('dark');
 document.documentElement.classList.add('light');
 
-const PAYPAL_CLIENT_ID = import.meta.env.VITE_PAYPAL_CLIENT_ID || 'test';
+// PayPal Client ID — se lee del .env
+// Sandbox IDs empiezan con: AZ... o AU...
+// Live IDs empiezan con:    AZ... también — el entorno lo determina PayPal internamente
+// Si ves sandbox.paypal.com en la red, el Client ID es de Sandbox aunque diga "live"
+const PAYPAL_CLIENT_ID = import.meta.env.VITE_PAYPAL_CLIENT_ID as string;
 
 function AdminLoadingFallback() {
   return (
     <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#fdf9e9' }}>
       <div className="flex flex-col items-center gap-4">
-        <div
-          className="w-8 h-8 border-2 border-t-transparent rounded-full animate-spin"
-          style={{ borderColor: '#003527', borderTopColor: 'transparent' }}
-        />
+        <div className="w-8 h-8 border-2 border-t-transparent rounded-full animate-spin"
+          style={{ borderColor: '#003527', borderTopColor: 'transparent' }} />
         <p className="text-sm" style={{ color: '#404944' }}>Cargando panel…</p>
       </div>
     </div>
@@ -49,50 +50,38 @@ export default function App() {
   };
 
   const isAdminPage = currentPage === 'admin-login' || currentPage === 'admin';
-console.log("PAYPAL CLIENT:", PAYPAL_CLIENT_ID);
+
   return (
     <PayPalScriptProvider
       options={{
-        clientId: PAYPAL_CLIENT_ID,
+        clientId: PAYPAL_CLIENT_ID || 'test',
         currency: 'USD',
         intent: 'capture',
         components: 'buttons',
+        // No pongas enableFunding ni disableFunding aquí — deja que PayPal decida
       }}
     >
       <CartProvider>
         <>
-          {/* ── Public pages ── */}
-          {currentPage === 'home' && <HomeScreen navigate={navigate} />}
-
+          {currentPage === 'home'    && <HomeScreen navigate={navigate} />}
           {currentPage === 'catalog' && (
-            <ProductCatalog
-              navigate={navigate}
-              activeFilter={catalogFilter}
-              setActiveFilter={setCatalogFilter}
-            />
+            <ProductCatalog navigate={navigate} activeFilter={catalogFilter} setActiveFilter={setCatalogFilter} />
           )}
+          {currentPage === 'detail'  && <ProductDetailPage navigate={navigate} />}
+          {currentPage === 'combo'   && <ComboBuilderScreen navigate={navigate} />}
+          {currentPage === 'cart'    && <ShoppingCart navigate={navigate} />}
 
-          {currentPage === 'detail' && <ProductDetailPage navigate={navigate} />}
-          {currentPage === 'combo'  && <ComboBuilderScreen navigate={navigate} />}
-          {currentPage === 'cart'   && <ShoppingCart navigate={navigate} />}
-
-          {/* ── Admin pages (lazy loaded) ── */}
           {currentPage === 'admin-login' && (
             <Suspense fallback={<AdminLoadingFallback />}>
-              <AdminLogin
-                onLogin={() => navigate('admin')}
-                onBack={() => navigate('home')}
-              />
+              <AdminLogin onLogin={() => navigate('admin')} onBack={() => navigate('home')} />
             </Suspense>
           )}
-
           {currentPage === 'admin' && (
             <Suspense fallback={<AdminLoadingFallback />}>
               <AdminDashboard onLogout={() => navigate('home')} />
             </Suspense>
           )}
 
-          {/* ── WhatsApp floating button (public only) ── */}
           {!isAdminPage && <WhatsAppButton />}
         </>
       </CartProvider>
