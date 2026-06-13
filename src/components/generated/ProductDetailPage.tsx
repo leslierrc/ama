@@ -1,97 +1,110 @@
 import React from 'react';
 import { Navbar } from './Navbar';
 import { Footer } from './Footer';
-import { Star, CheckCircle2, Truck, ShieldCheck, ChevronRight, ShoppingCart, Zap } from 'lucide-react';
 import { useCart } from '../../hooks/useCart';
+
 type Page = 'home' | 'catalog' | 'detail' | 'combo' | 'cart';
 interface ProductDetailPageProps {
   navigate?: (page: Page) => void;
 }
-interface SpecItem {
-  id: string;
-  label: string;
-  value: string;
-}
-interface RelatedProduct {
-  id: string;
-  title: string;
-  price: number;
-  image: string;
-}
-const SPECS: SpecItem[] = [{
-  id: 'btu',
-  label: 'Capacidad',
-  value: '12,000 BTU'
-}, {
-  id: 'voltage',
-  label: 'Voltaje',
-  value: '220V'
-}, {
-  id: 'power',
-  label: 'Consumo',
-  value: '900W'
-}, {
-  id: 'warranty',
-  label: 'Garantía',
-  value: '1 año'
-}, {
-  id: 'type',
-  label: 'Tipo',
-  value: 'Inverter'
-}, {
-  id: 'coverage',
-  label: 'Cobertura',
-  value: 'Hasta 25 m²'
-}];
-const RELATED_PRODUCTS: RelatedProduct[] = [{
-  id: 'freidora',
-  title: 'Freidora de Aire',
-  price: 12000,
-  image: 'https://images.unsplash.com/photo-1648169668764-0e29a2a75b28?auto=format&fit=crop&q=80&w=400'
-}, {
-  id: 'refrigerador',
-  title: 'Refrigerador',
-  price: 38000,
-  image: 'https://images.unsplash.com/photo-1584568694244-14fbdf83bd30?auto=format&fit=crop&q=80&w=400'
-}, {
-  id: 'ventilador',
-  title: 'Ventilador de Torre',
-  price: 4500,
-  image: 'https://images.unsplash.com/photo-1585771724684-38269d6639fd?auto=format&fit=crop&q=80&w=400'
-}];
-export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
-  navigate
-}) => {
+
+const SPECS = [
+  { id: 'btu', label: 'Capacidad', value: '12,000 BTU' },
+  { id: 'voltage', label: 'Voltaje', value: '220V' },
+  { id: 'power', label: 'Consumo', value: '900W' },
+  { id: 'warranty', label: 'Garantía', value: '1 año' },
+  { id: 'type', label: 'Tipo', value: 'Inverter' },
+  { id: 'coverage', label: 'Cobertura', value: 'Hasta 25 m²' },
+];
+
+const RELATED = [
+  {
+    id: 'freidora',
+    title: 'Freidora de Aire',
+    price: 14000,
+    image: 'https://images.unsplash.com/photo-1648169668764-0e29a2a75b28?auto=format&fit=crop&q=80&w=600',
+  },
+  {
+    id: 'refrigerador',
+    title: 'Refrigerador',
+    price: 65000,
+    image: 'https://images.unsplash.com/photo-1584568694244-14fbdf83bd30?auto=format&fit=crop&q=80&w=600',
+  },
+  {
+    id: 'batidora',
+    title: 'Batidora de Vaso',
+    price: 6500,
+    image: 'https://images.unsplash.com/photo-1578643463396-0997cb5328c1?auto=format&fit=crop&q=80&w=600',
+  },
+];
+
+export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ navigate }) => {
   const { addToCart } = useCart();
-  return <div className="min-h-screen bg-[#020408] text-white overflow-x-hidden font-sans">
+
+  const handleAddToCart = () => {
+    addToCart({
+      id: 'split',
+      title: 'Split 1 Ton Inverter',
+      price: 45000,
+      image: 'https://images.unsplash.com/photo-1585771724684-38269d6639fd?auto=format&fit=crop&q=80&w=600',
+      category: 'Electrodomésticos',
+    });
+    navigate?.('cart');
+  };
+
+  return (
+    <div
+      className="min-h-screen overflow-x-hidden"
+      style={{ backgroundColor: 'var(--color-surface)', color: 'var(--color-on-surface)' }}
+    >
       <Navbar navigate={navigate} />
 
-      <main className="pt-24">
+      <main className="pt-20">
         {/* Breadcrumb */}
-        <div className="max-w-7xl mx-auto px-6 mb-8">
-          <nav className="flex items-center gap-2 text-sm text-gray-400">
-            <button onClick={() => navigate?.('home')} className="hover:text-white transition-colors">
+        <div className="max-w-[1280px] mx-auto px-5 md:px-16 py-6">
+          <nav className="flex items-center gap-2 text-sm" style={{ color: 'var(--color-on-surface-variant)' }}>
+            <button
+              onClick={() => navigate?.('home')}
+              className="transition-colors hover:underline"
+              style={{ color: 'var(--color-on-surface-variant)' }}
+            >
               Inicio
             </button>
-            <ChevronRight size={14} className="text-gray-600" />
-            <button onClick={() => navigate?.('catalog')} className="hover:text-white transition-colors">
+            <span className="material-symbols-outlined text-[14px]">chevron_right</span>
+            <button
+              onClick={() => navigate?.('catalog')}
+              className="transition-colors hover:underline"
+              style={{ color: 'var(--color-on-surface-variant)' }}
+            >
               Electrodomésticos
             </button>
-            <ChevronRight size={14} className="text-gray-600" />
-            <span className="text-white font-medium">Split 1 Ton Inverter</span>
+            <span className="material-symbols-outlined text-[14px]">chevron_right</span>
+            <span style={{ color: 'var(--color-on-surface)' }} className="font-medium">
+              Split 1 Ton Inverter
+            </span>
           </nav>
         </div>
 
-        {/* Main Product Section */}
-        <section className="max-w-7xl mx-auto px-6 mb-20">
+        {/* Main product */}
+        <section className="max-w-[1280px] mx-auto px-5 md:px-16 pb-20">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16">
             {/* Image */}
             <div className="relative">
-              <div className="aspect-square rounded-3xl overflow-hidden glass border border-white/10">
-                <img src="https://images.unsplash.com/photo-1585771724684-38269d6639fd?auto=format&fit=crop&q=80&w=800" alt="Split Inverter 1 Tonelada" className="w-full h-full object-cover" />
+              <div
+                className="aspect-square rounded-xl overflow-hidden ambient-shadow"
+                style={{ border: '1px solid var(--color-surface-variant)' }}
+              >
+                <img
+                  src="https://images.unsplash.com/photo-1585771724684-38269d6639fd?auto=format&fit=crop&q=80&w=900"
+                  alt="Split Inverter 1 Tonelada"
+                  className="w-full h-full object-cover"
+                />
               </div>
               <div className="absolute top-4 left-4">
-                <span className="px-3 py-1.5 bg-[#0055FF] text-white text-xs font-black uppercase tracking-wider rounded-full shadow-[0_0_16px_rgba(0,85,255,0.5)]">
+                <span
+                  className="label-caps px-3 py-1.5 rounded-full text-white"
+                  style={{ backgroundColor: 'var(--color-primary)' }}
+                >
                   Electrodoméstico
                 </span>
               </div>
@@ -99,67 +112,110 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
 
             {/* Info */}
             <div className="flex flex-col justify-center gap-6">
+              {/* Stars */}
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-0.5">
+                  {[1, 2, 3, 4, 5].map(s => (
+                    <span
+                      key={s}
+                      className="material-symbols-outlined text-[18px]"
+                      style={{
+                        color: 'var(--color-gold-muted)',
+                        fontVariationSettings: "'FILL' 1",
+                      }}
+                    >
+                      star
+                    </span>
+                  ))}
+                </div>
+                <span
+                  className="text-sm font-semibold"
+                  style={{ color: 'var(--color-gold-muted)' }}
+                >
+                  4.9
+                </span>
+                <span className="text-sm" style={{ color: 'var(--color-on-surface-variant)' }}>
+                  (128 reseñas)
+                </span>
+              </div>
+
               <div>
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="flex items-center gap-1">
-                    {[1, 2, 3, 4, 5].map(star => <Star key={star} size={16} className={star <= 5 ? 'text-yellow-400 fill-yellow-400' : 'text-gray-600'} />)}
-                  </div>
-                  <span className="text-yellow-400 font-bold text-sm">4.9</span>
-                  <span className="text-gray-500 text-sm">(128 reseñas)</span>
-                </div>
-                <h1 className="text-4xl md:text-5xl font-black tracking-tight mb-4">
-                  Split Inverter<br />
-                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#0055FF] to-white">1 Tonelada</span>
+                <h1
+                  className="font-display font-bold leading-tight mb-4"
+                  style={{
+                    color: 'var(--color-primary)',
+                    fontSize: 'clamp(1.75rem, 3.5vw, 2.5rem)',
+                    letterSpacing: '-0.01em',
+                  }}
+                >
+                  Split Inverter<br />1 Tonelada
                 </h1>
-                <div className="flex items-center gap-3 mb-6">
-                  <CheckCircle2 size={18} className="text-emerald-400" />
-                  <span className="text-emerald-400 font-bold text-sm">En stock — Entrega en 24h</span>
+                <div className="flex items-center gap-2 mb-4">
+                  <span
+                    className="material-symbols-outlined text-[18px]"
+                    style={{ color: '#10b981', fontVariationSettings: "'FILL' 1" }}
+                  >
+                    check_circle
+                  </span>
+                  <span className="text-sm font-semibold" style={{ color: '#10b981' }}>
+                    En stock — Entrega en 24h
+                  </span>
                 </div>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-4xl font-black text-white">CUP $45,000</span>
+                <div className="text-3xl font-semibold" style={{ color: 'var(--color-secondary)', fontFamily: 'Inter' }}>
+                  CUP $45,000
                 </div>
               </div>
 
-              {/* Delivery Note */}
-              <div className="glass rounded-2xl p-4 border border-white/10 flex items-center gap-3">
-                <Truck size={22} className="text-[#0055FF] shrink-0" />
-                <p className="text-sm text-gray-300">
-                  <span className="text-white font-bold">Entrega gratis en La Habana</span> en menos de 24 horas
+              {/* Delivery note */}
+              <div
+                className="rounded-xl p-4 flex items-center gap-3"
+                style={{
+                  backgroundColor: 'var(--color-surface-container)',
+                  border: '1px solid var(--color-outline-variant)',
+                }}
+              >
+                <span
+                  className="material-symbols-outlined shrink-0"
+                  style={{ color: 'var(--color-primary)' }}
+                >
+                  local_shipping
+                </span>
+                <p className="text-sm" style={{ color: 'var(--color-on-surface-variant)' }}>
+                  <span style={{ color: 'var(--color-on-surface)', fontWeight: 600 }}>
+                    Entrega gratis en La Habana
+                  </span>{' '}
+                  en menos de 24 horas
                 </p>
               </div>
 
               {/* CTAs */}
               <div className="flex flex-col sm:flex-row gap-4">
-                <button onClick={() => {
-                  addToCart({
-                    id: 'split',
-                    title: 'Split 1 Ton Inverter',
-                    price: 45000,
-                    image: 'https://images.unsplash.com/photo-1585771724684-38269d6639fd?auto=format&fit=crop&q=80&w=300',
-                    category: 'Electrodoméstico'
-                  });
-                  navigate?.('cart');
-                }} className="flex-1 flex items-center justify-center gap-2 px-6 py-4 bg-[#0055FF] text-white rounded-xl font-black text-lg hover:bg-[#0044CC] transition-colors shadow-[0_0_20px_rgba(0,85,255,0.4)] hover:shadow-[0_0_30px_rgba(0,85,255,0.6)]">
-                  <ShoppingCart size={20} />
-                  <span>Agregar al Carrito</span>
+                <button
+                  onClick={handleAddToCart}
+                  className="flex-1 flex items-center justify-center gap-2 px-6 py-4 rounded-xl label-caps transition-all active:scale-95 hover:opacity-90"
+                  style={{
+                    backgroundColor: 'var(--color-primary)',
+                    color: 'white',
+                  }}
+                >
+                  <span className="material-symbols-outlined text-[20px]">shopping_cart</span>
+                  Agregar al Carrito
                 </button>
-                <button onClick={() => {
-                  addToCart({
-                    id: 'split',
-                    title: 'Split 1 Ton Inverter',
-                    price: 45000,
-                    image: 'https://images.unsplash.com/photo-1585771724684-38269d6639fd?auto=format&fit=crop&q=80&w=300',
-                    category: 'Electrodoméstico'
-                  });
-                  navigate?.('cart');
-                }} className="flex-1 flex items-center justify-center gap-2 px-6 py-4 bg-[#FF2D55] text-white rounded-xl font-black text-lg hover:bg-[#e02249] transition-colors shadow-[0_0_20px_rgba(255,45,85,0.35)] hover:shadow-[0_0_30px_rgba(255,45,85,0.55)]">
-                  <Zap size={20} />
-                  <span>Comprar Ahora</span>
+                <button
+                  onClick={handleAddToCart}
+                  className="flex-1 flex items-center justify-center gap-2 px-6 py-4 rounded-xl label-caps transition-all active:scale-95 hover:opacity-90"
+                  style={{
+                    backgroundColor: 'var(--color-secondary)',
+                    color: 'white',
+                  }}
+                >
+                  <span className="material-symbols-outlined text-[20px]">bolt</span>
+                  Comprar Ahora
                 </button>
               </div>
 
-              <div className="flex items-center gap-2 text-xs text-gray-500">
-                <ShieldCheck size={14} />
+              <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--color-on-surface-variant)' }}>
+                <span className="material-symbols-outlined text-[16px]">verified_user</span>
                 <span>Pago contra entrega disponible · Garantía de 1 año</span>
               </div>
             </div>
@@ -167,38 +223,89 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
         </section>
 
         {/* Specs */}
-        <section className="max-w-7xl mx-auto px-6 mb-20">
-          <h2 className="text-2xl font-black mb-6">Especificaciones técnicas</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-            {SPECS.map(spec => <div key={spec.id} className="glass rounded-2xl p-5 border border-white/10">
-                <p className="text-gray-400 text-xs font-medium uppercase tracking-widest mb-1">{spec.label}</p>
-                <p className="text-white font-black text-lg">{spec.value}</p>
-              </div>)}
+        <section
+          className="py-16 px-5 md:px-16"
+          style={{ backgroundColor: 'var(--color-surface-container-low)' }}
+        >
+          <div className="max-w-[1280px] mx-auto">
+            <h2
+              className="font-display text-2xl font-semibold mb-8"
+              style={{ color: 'var(--color-primary)' }}
+            >
+              Especificaciones técnicas
+            </h2>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+              {SPECS.map(spec => (
+                <div
+                  key={spec.id}
+                  className="rounded-xl p-5 ambient-shadow"
+                  style={{
+                    backgroundColor: 'var(--color-surface-container-lowest)',
+                    border: '1px solid var(--color-outline-variant)',
+                  }}
+                >
+                  <p
+                    className="label-caps mb-1"
+                    style={{ color: 'var(--color-on-surface-variant)' }}
+                  >
+                    {spec.label}
+                  </p>
+                  <p
+                    className="text-lg font-semibold"
+                    style={{ color: 'var(--color-on-surface)' }}
+                  >
+                    {spec.value}
+                  </p>
+                </div>
+              ))}
+            </div>
           </div>
         </section>
 
         {/* Related Products */}
-        <section className="max-w-7xl mx-auto px-6 mb-24">
-          <h2 className="text-2xl font-black mb-8">Productos relacionados</h2>
+        <section className="py-16 px-5 md:px-16 max-w-[1280px] mx-auto pb-24">
+          <h2
+            className="font-display text-2xl font-semibold mb-8"
+            style={{ color: 'var(--color-primary)' }}
+          >
+            Productos relacionados
+          </h2>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-            {RELATED_PRODUCTS.map(product => <div key={product.id} className="group glass rounded-2xl overflow-hidden cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_0_24px_rgba(0,85,255,0.15)]" onClick={() => navigate?.('detail')}>
+            {RELATED.map(product => (
+              <div
+                key={product.id}
+                className="group overflow-hidden rounded-xl cursor-pointer ambient-shadow transition-all duration-300"
+                style={{ backgroundColor: 'var(--color-surface-container-low)' }}
+                onClick={() => navigate?.('detail')}
+              >
                 <div className="aspect-video overflow-hidden">
-                  <img src={product.image} alt={product.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                  <img
+                    src={product.image}
+                    alt={product.title}
+                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                  />
                 </div>
                 <div className="p-5">
-                  <h3 className="font-bold text-white group-hover:text-[#0055FF] transition-colors mb-1">
+                  <h3
+                    className="font-display font-semibold mb-1 transition-colors"
+                    style={{ color: 'var(--color-primary)' }}
+                  >
                     {product.title}
                   </h3>
-                  <p className="text-lg font-black">
-                    <span className="text-gray-400 text-sm font-medium mr-1">CUP</span>
-                    ${product.price.toLocaleString('es-CU')}
+                  <p
+                    className="text-lg font-medium"
+                    style={{ color: 'var(--color-secondary)', fontFamily: 'Inter' }}
+                  >
+                    CUP ${product.price.toLocaleString('es-CU')}
                   </p>
                 </div>
-              </div>)}
+              </div>
+            ))}
           </div>
         </section>
       </main>
 
-      <Footer />
-    </div>;
+      <Footer onAdminClick={() => navigate?.('admin-login' as any)} />
+    </div>
+  );
 };

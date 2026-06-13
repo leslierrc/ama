@@ -1,645 +1,625 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { PayPalButtons, usePayPalScriptReducer } from '@paypal/react-paypal-js';
 import { Navbar } from './Navbar';
 import { Footer } from './Footer';
-import { 
-  Plus, Minus, Trash2, Zap, ShieldCheck, MapPin, User, 
-  Phone, FileText, Settings, Search, Navigation, Compass, Check
-} from 'lucide-react';
 import { useCart } from '../../hooks/useCart';
+import { supabase } from '../../lib/supabase';
 
-type Page = 'home' | 'catalog' | 'detail' | 'combo' | 'cart';
+type Page = 'home' | 'catalog' | 'detail' | 'combo' | 'cart' | 'admin-login' | 'admin';
+type PaymentMethod = 'whatsapp' | 'paypal';
 
 interface ShoppingCartProps {
   navigate?: (page: Page) => void;
 }
 
-export const ShoppingCart: React.FC<ShoppingCartProps> = ({
-  navigate
+const WA_NUMBER = import.meta.env.VITE_WHATSAPP_NUMBER || '5355542936';
+const CUP_TO_USD = 200; // 1 USD ≈ 200 CUP
+
+// ── PayPal Checkout Button — handles SDK loading state ───────────────────────
+interface PayPalCheckoutButtonProps {
+  totalUSD: string;
+  disabled: boolean;
+  onValidate: () => boolean;
+  createOrder: (data: Record<string, unknown>, actions: any) => Promise<string>;
+  onApprove: (data: Record<string, unknown>, actions: any) => Promise<void>;
+  onError: (err: unknown) => void;
+}
+
+const PayPalCheckoutButton: React.FC<PayPalCheckoutButtonProps> = ({
+  totalUSD, disabled, onValidate, createOrder, onApprove, onError,
 }) => {
+  const [{ isPending, isRejected }] = usePayPalScriptReducer();
+  const [paypalError, setPaypalError] = useState('');
+
+  if (isRejected) {
+    return (
+      <div className="w-full rounded-xl p-4 text-center text-sm"
+        style={{ backgroundColor: 'rgba(186,26,26,0.08)', color: '#ba1a1a', border: '1px solid rgba(186,26,26,0.2)' }}>
+        ⚠️ No se pudo cargar PayPal. Verifica tu conexión o usa el pago por WhatsApp.
+      </div>
+    );
+  }
+
+  if (isPending) {
+    return (
+      <div className="w-full rounded-xl py-4 flex items-center justify-center gap-3"
+        style={{ backgroundColor: '#f0f4ff', border: '1px solid #c7d4f5' }}>
+        <div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin"
+          style={{ borderColor: '#0070BA', borderTopColor: 'transparent' }} />
+        <span className="text-sm font-medium" style={{ color: '#003087' }}>Cargando PayPal…</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      {/* Info box */}
+      <div className="rounded-xl p-3 flex items-start gap-3"
+        style={{ backgroundColor: '#f0f4ff', border: '1px solid #c7d4f5' }}>
+        <span className="material-symbols-outlined text-[18px] shrink-0 mt-0.5" style={{ color: '#0070BA' }}>info</span>
+        <p className="text-xs leading-relaxed" style={{ color: '#003087' }}>
+          Al hacer clic en <strong>"Pagar ahora con PayPal"</strong> se abrirá la ventana segura de PayPal. 
+          El monto a cobrar será <strong>${totalUSD} USD</strong>.
+          Completa el formulario de datos primero.
+        </p>
+      </div>
+
+      {paypalError && (
+        <p className="text-sm px-3 py-2 rounded-lg"
+          style={{ backgroundColor: 'rgba(186,26,26,0.08)', color: '#ba1a1a', border: '1px solid rgba(186,26,26,0.2)' }}>
+          ⚠️ {paypalError}
+        </p>
+      )}
+
+      <div className={disabled ? 'opacity-40 pointer-events-none' : ''}>
+        <PayPalButtons
+          style={{
+            layout: 'vertical',
+            color: 'blue',
+            shape: 'rect',
+            label: 'pay',
+            height: 50,
+            tagline: false,
+          }}
+          createOrder={(data, actions) => {
+            setPaypalError('');
+            if (!onValidate()) {
+              return Promise.reject(new Error('Formulario incompleto'));
+            }
+            return createOrder(data, actions);
+          }}
+          onApprove={onApprove}
+          onError={(err) => {
+            setPaypalError('Error al procesar el pago. Intenta de nuevo.');
+            onError(err);
+          }}
+          onCancel={() => {
+            setPaypalError('Pago cancelado. Puedes intentarlo de nuevo.');
+          }}
+          disabled={disabled}
+          forceReRender={[totalUSD]}
+        />
+      </div>
+
+      <p className="text-xs text-center" style={{ color: 'var(--color-on-surface-variant)' }}>
+        🔒 Pago procesado de forma segura por PayPal
+      </p>
+    </div>
+  );
+};
+
+// ── Main ShoppingCart ─────────────────────────────────────────────────────────
+export const ShoppingCart: React.FC<ShoppingCartProps> = ({ navigate }) => {
   const { cart, updateQuantity, removeFromCart, clearCart, cartTotal } = useCart();
   const [name, setName] = useState('');
   const [address, setAddress] = useState('');
   const [phone, setPhone] = useState('');
   const [notes, setNotes] = useState('');
   const [ordered, setOrdered] = useState(false);
+  const [orderedVia, setOrderedVia] = useState<PaymentMethod>('whatsapp');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('whatsapp');
+  const [formError, setFormError] = useState('');
 
-  // Google Maps / Leaflet states
-  const [googleKey, setGoogleKey] = useState(() => localStorage.getItem('ama_google_key') || '');
-  const [mapEngine, setMapEngine] = useState<'leaflet' | 'google'>('leaflet');
-  const [coords, setCoords] = useState<{ lat: number, lng: number }>({ lat: 23.1136, lng: -82.3666 }); // Default La Habana
+  // Map
+  const [coords, setCoords] = useState({ lat: 23.1136, lng: -82.3666 });
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
-  const [leafletLoaded, setLeafletLoaded] = useState(false);
+  const [mapReady, setMapReady] = useState(false);
+  const [googleKey, setGoogleKey] = useState(() => localStorage.getItem('ama_google_key') || '');
+  const [tempKey, setTempKey] = useState('');
+  const [showKeyPanel, setShowKeyPanel] = useState(false);
   const [googleLoaded, setGoogleLoaded] = useState(false);
-  const [showKeyInput, setShowKeyInput] = useState(false);
-  const [tempKey, setTempKey] = useState(googleKey);
+  const [mapEngine, setMapEngine] = useState<'leaflet' | 'google'>('leaflet');
 
   const mapContainerRef = useRef<HTMLDivElement>(null);
-  const addressInputRef = useRef<HTMLInputElement>(null);
-  
   const leafletMapRef = useRef<any>(null);
   const leafletMarkerRef = useRef<any>(null);
   const googleMapRef = useRef<any>(null);
   const googleMarkerRef = useRef<any>(null);
+  const initAttemptRef = useRef(0);
 
-  const subtotal = cartTotal;
-  const shipping = 0;
-  const total = subtotal + shipping;
+  const total = cartTotal;
+  const totalUSD = (total / CUP_TO_USD).toFixed(2);
 
-  // 1. Load Leaflet CDN Assets
+  // ── Load Leaflet ──────────────────────────────────────────
   useEffect(() => {
     if (!document.getElementById('leaflet-css')) {
       const link = document.createElement('link');
-      link.id = 'leaflet-css';
-      link.rel = 'stylesheet';
+      link.id = 'leaflet-css'; link.rel = 'stylesheet';
       link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
       document.head.appendChild(link);
     }
-
-    if ((window as any).L) {
-      setLeafletLoaded(true);
-    } else {
+    if ((window as any).L) { setMapReady(true); return; }
+    if (!document.getElementById('leaflet-js')) {
       const script = document.createElement('script');
       script.id = 'leaflet-js';
       script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
       script.async = true;
-      script.onload = () => setLeafletLoaded(true);
+      script.onload = () => setMapReady(true);
       document.body.appendChild(script);
+    } else {
+      const iv = setInterval(() => { if ((window as any).L) { setMapReady(true); clearInterval(iv); } }, 150);
+      return () => clearInterval(iv);
     }
   }, []);
 
-  // 2. Load Google Maps script when Key is entered
+  // ── Load Google Maps ──────────────────────────────────────
   useEffect(() => {
-    if (!googleKey) {
-      setMapEngine('leaflet');
-      return;
-    }
-
-    const callbackName = 'initGoogleMapsCallback';
-    (window as any)[callbackName] = () => {
-      setGoogleLoaded(true);
-      setMapEngine('google');
-    };
-
-    // Remove any previous script
-    const existing = document.getElementById('google-maps-script');
-    if (existing) {
-      existing.remove();
-    }
-
+    if (!googleKey) return;
+    const old = document.getElementById('google-maps-script');
+    if (old) old.remove();
+    const cb = '__amaGoogleMapsReady__';
+    (window as any)[cb] = () => { setGoogleLoaded(true); setMapEngine('google'); delete (window as any)[cb]; };
     const script = document.createElement('script');
     script.id = 'google-maps-script';
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${googleKey}&libraries=places&callback=${callbackName}`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${googleKey}&libraries=places&callback=${cb}`;
     script.async = true;
+    script.onerror = () => setMapEngine('leaflet');
     document.body.appendChild(script);
-
-    return () => {
-      delete (window as any)[callbackName];
-    };
+    return () => { delete (window as any)[cb]; };
   }, [googleKey]);
 
-  // Helper: Get Leaflet Custom Pulsing neon pin
-  const getLeafletPinIcon = () => {
-    if (!(window as any).L) return null;
+  const initLeaflet = useCallback(() => {
+    const container = mapContainerRef.current;
+    if (!container || !(window as any).L || container.clientHeight === 0) return false;
+    if (leafletMapRef.current) { leafletMapRef.current.remove(); leafletMapRef.current = null; }
+    container.innerHTML = '';
     const L = (window as any).L;
-    return L.divIcon({
-      html: `<div class="relative flex items-center justify-center w-8 h-8">
-              <div class="absolute w-8 h-8 bg-[#0055FF] rounded-full opacity-35 animate-ping"></div>
-              <div class="relative w-5 h-5 bg-[#0055FF] border-2 border-white rounded-full shadow-[0_0_12px_rgba(0,85,255,0.9)] flex items-center justify-center">
-                <div class="w-1.5 h-1.5 bg-white rounded-full"></div>
-              </div>
-             </div>`,
-      className: 'custom-leaflet-marker-icon',
-      iconSize: [32, 32],
-      iconAnchor: [16, 16]
+    const map = L.map(container, { zoomControl: true, attributionControl: false }).setView([coords.lat, coords.lng], 15);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+    const pin = L.divIcon({
+      html: `<div style="width:22px;height:22px;background:#003527;border:3px solid white;border-radius:50%;box-shadow:0 2px 8px rgba(0,53,39,0.45)"></div>`,
+      className: '', iconSize: [22, 22], iconAnchor: [11, 11],
+    });
+    const marker = L.marker([coords.lat, coords.lng], { draggable: true, icon: pin }).addTo(map);
+    marker.on('dragend', () => {
+      const pos = marker.getLatLng();
+      setCoords({ lat: pos.lat, lng: pos.lng });
+      reverseGeocode(pos.lat, pos.lng);
+    });
+    setTimeout(() => map.invalidateSize(), 100);
+    leafletMapRef.current = map; leafletMarkerRef.current = marker;
+    return true;
+  }, [coords.lat, coords.lng]);
+
+  const initGoogle = useCallback(() => {
+    const container = mapContainerRef.current;
+    if (!container || !(window as any).google || container.clientHeight === 0) return false;
+    container.innerHTML = '';
+    const google = (window as any).google;
+    const map = new google.maps.Map(container, { center: { lat: coords.lat, lng: coords.lng }, zoom: 15, disableDefaultUI: true, zoomControl: true });
+    const marker = new google.maps.Marker({ position: { lat: coords.lat, lng: coords.lng }, map, draggable: true });
+    marker.addListener('dragend', () => {
+      const pos = marker.getPosition();
+      if (pos) { const lat = pos.lat(); const lng = pos.lng(); setCoords({ lat, lng }); reverseGeocodeGoogle(lat, lng); }
+    });
+    googleMapRef.current = map; googleMarkerRef.current = marker;
+    return true;
+  }, [coords.lat, coords.lng]);
+
+  useEffect(() => {
+    const fn = mapEngine === 'google' && googleLoaded ? initGoogle : mapEngine === 'leaflet' && mapReady ? initLeaflet : null;
+    if (!fn) return;
+    initAttemptRef.current = 0;
+    const tryInit = () => { if (!fn() && initAttemptRef.current < 20) { initAttemptRef.current++; setTimeout(tryInit, 150); } };
+    tryInit();
+  }, [mapReady, mapEngine, googleLoaded, initLeaflet, initGoogle]);
+
+  const reverseGeocode = async (lat: number, lng: number) => {
+    try {
+      const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18`);
+      const data = await res.json();
+      if (data?.display_name) setAddress(data.display_name);
+    } catch { /* silent */ }
+  };
+
+  const reverseGeocodeGoogle = (lat: number, lng: number) => {
+    const google = (window as any).google;
+    if (!google) return;
+    new google.maps.Geocoder().geocode({ location: { lat, lng } }, (results: any, status: string) => {
+      if (status === 'OK' && results?.[0]) setAddress(results[0].formatted_address);
     });
   };
 
-  // 3. Initialize Map based on Active Engine
-  useEffect(() => {
-    if (!mapContainerRef.current) return;
-
-    // Cleanup Leaflet
-    if (leafletMapRef.current) {
-      leafletMapRef.current.remove();
-      leafletMapRef.current = null;
-      leafletMarkerRef.current = null;
-    }
-    // Cleanup Google references
-    googleMapRef.current = null;
-    googleMarkerRef.current = null;
-
-    mapContainerRef.current.innerHTML = '';
-
-    if (mapEngine === 'google' && googleLoaded && (window as any).google) {
-      try {
-        const google = (window as any).google;
-        const map = new google.maps.Map(mapContainerRef.current, {
-          center: coords,
-          zoom: 15,
-          disableDefaultUI: true,
-          zoomControl: true,
-          styles: [
-            { elementType: "geometry", stylers: [{ color: "#0b1329" }] },
-            { elementType: "labels.text.stroke", stylers: [{ color: "#0b1329" }] },
-            { elementType: "labels.text.fill", stylers: [{ color: "#7aa2f7" }] },
-            { featureType: "administrative.locality", elementType: "labels.text.fill", stylers: [{ color: "#bb9af7" }] },
-            { featureType: "poi", elementType: "labels.text.fill", stylers: [{ color: "#9ece6a" }] },
-            { featureType: "poi.park", elementType: "geometry", stylers: [{ color: "#1a233a" }] },
-            { featureType: "poi.park", elementType: "labels.text.fill", stylers: [{ color: "#41a2f6" }] },
-            { featureType: "road", elementType: "geometry", stylers: [{ color: "#161b2c" }] },
-            { featureType: "road", elementType: "geometry.stroke", stylers: [{ color: "#020408" }] },
-            { featureType: "road", elementType: "labels.text.fill", stylers: [{ color: "#a9b1d6" }] },
-            { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#ff9e64" }] },
-            { featureType: "road.highway", elementType: "geometry.stroke", stylers: [{ color: "#020408" }] },
-            { featureType: "road.highway", elementType: "labels.text.fill", stylers: [{ color: "#f7768e" }] },
-            { featureType: "transit", elementType: "geometry", stylers: [{ color: "#202b46" }] },
-            { featureType: "transit.station", elementType: "labels.text.fill", stylers: [{ color: "#2ac3de" }] },
-            { featureType: "water", elementType: "geometry", stylers: [{ color: "#070c1a" }] },
-            { featureType: "water", elementType: "labels.text.fill", stylers: [{ color: "#565f89" }] },
-            { featureType: "water", elementType: "labels.text.stroke", stylers: [{ color: "#070c1a" }] }
-          ]
-        });
-
-        const marker = new google.maps.Marker({
-          position: coords,
-          map: map,
-          draggable: true,
-          title: "Ubicación del pedido"
-        });
-
-        marker.addListener('dragend', () => {
-          const position = marker.getPosition();
-          if (position) {
-            const newLat = position.lat();
-            const newLng = position.lng();
-            setCoords({ lat: newLat, lng: newLng });
-            reverseGeocode(newLat, newLng, 'google');
-          }
-        });
-
-        googleMapRef.current = map;
-        googleMarkerRef.current = marker;
-      } catch (err) {
-        console.error("Failed to load Google Map:", err);
-        setMapEngine('leaflet');
-      }
-    } else if (leafletLoaded && (window as any).L) {
-      try {
-        const L = (window as any).L;
-        const map = L.map(mapContainerRef.current, {
-          zoomControl: true,
-          attributionControl: false
-        }).setView([coords.lat, coords.lng], 15);
-
-        // Standard OSM tiles (we apply CSS invert for Dark mode!)
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-
-        const marker = L.marker([coords.lat, coords.lng], {
-          draggable: true,
-          icon: getLeafletPinIcon()
-        }).addTo(map);
-
-        marker.on('dragend', () => {
-          const pos = marker.getLatLng();
-          setCoords({ lat: pos.lat, lng: pos.lng });
-          reverseGeocode(pos.lat, pos.lng, 'leaflet');
-        });
-
-        leafletMapRef.current = map;
-        leafletMarkerRef.current = marker;
-      } catch (err) {
-        console.error("Failed to load Leaflet Map:", err);
-      }
-    }
-  }, [mapEngine, leafletLoaded, googleLoaded]);
-
-  // 4. Autocomplete setup for Google Places Input
-  useEffect(() => {
-    if (mapEngine === 'google' && googleLoaded && addressInputRef.current && (window as any).google) {
-      try {
-        const google = (window as any).google;
-        const autocomplete = new google.maps.places.Autocomplete(addressInputRef.current, {
-          types: ['geocode', 'address'],
-          componentRestrictions: { country: 'cu' }
-        });
-
-        autocomplete.addListener('place_changed', () => {
-          const place = autocomplete.getPlace();
-          if (place.geometry && place.geometry.location) {
-            const lat = place.geometry.location.lat();
-            const lng = place.geometry.location.lng();
-            const newCoords = { lat, lng };
-            setCoords(newCoords);
-            setAddress(place.formatted_address || '');
-
-            if (googleMapRef.current) {
-              googleMapRef.current.setCenter(newCoords);
-              googleMapRef.current.setZoom(16);
-            }
-            if (googleMarkerRef.current) {
-              googleMarkerRef.current.setPosition(newCoords);
-            }
-          }
-        });
-      } catch (err) {
-        console.error("Google autocomplete setup failed:", err);
-      }
-    }
-  }, [mapEngine, googleLoaded]);
-
-  // 5. Reverse Geocode Coordinates
-  const reverseGeocode = async (lat: number, lng: number, engine: 'google' | 'leaflet') => {
-    if (engine === 'google' && (window as any).google) {
-      try {
-        const google = (window as any).google;
-        const geocoder = new google.maps.Geocoder();
-        geocoder.geocode({ location: { lat, lng } }, (results: any, status: string) => {
-          if (status === 'OK' && results && results[0]) {
-            setAddress(results[0].formatted_address);
-          }
-        });
-      } catch (err) {
-        console.error(err);
-      }
-    } else {
-      try {
-        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18`);
-        const data = await res.json();
-        if (data && data.display_name) {
-          // clean up display name if too long or format it nicely
-          setAddress(data.display_name);
-        }
-      } catch (err) {
-        console.error("Reverse geocoding error:", err);
-      }
-    }
-  };
-
-  // 6. Free OSM Nominatim suggestions query for La Habana (Leaflet Fallback)
   const handleAddressChange = async (val: string) => {
     setAddress(val);
-    if (mapEngine === 'google') return; // Handled natively by Google Places
-
-    if (val.trim().length < 3) {
-      setSuggestions([]);
-      setShowSuggestions(false);
-      return;
-    }
-
-    setLoadingSuggestions(true);
-    setShowSuggestions(true);
-
+    if (val.trim().length < 3) { setSuggestions([]); setShowSuggestions(false); return; }
+    setLoadingSuggestions(true); setShowSuggestions(true);
     try {
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(val)}+La+Habana+Cuba&format=json&limit=5&addressdetails=1`
-      );
-      const data = await res.json();
-      setSuggestions(data);
-    } catch (err) {
-      console.error("Nominatim fetch error:", err);
-    } finally {
-      setLoadingSuggestions(false);
-    }
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(val)}+La+Habana+Cuba&format=json&limit=5`);
+      setSuggestions(await res.json());
+    } catch { /* silent */ } finally { setLoadingSuggestions(false); }
   };
 
   const selectSuggestion = (sug: any) => {
-    const lat = parseFloat(sug.lat);
-    const lon = parseFloat(sug.lon);
-    const newCoords = { lat, lng: lon };
-    setCoords(newCoords);
-    setAddress(sug.display_name);
-    setShowSuggestions(false);
-
-    if (leafletMapRef.current) {
-      leafletMapRef.current.setView([lat, lon], 16);
-    }
-    if (leafletMarkerRef.current) {
-      leafletMarkerRef.current.setLatLng([lat, lon]);
-    }
+    const lat = parseFloat(sug.lat); const lng = parseFloat(sug.lon);
+    setCoords({ lat, lng }); setAddress(sug.display_name); setShowSuggestions(false);
+    leafletMapRef.current?.setView([lat, lng], 16); leafletMarkerRef.current?.setLatLng([lat, lng]);
+    googleMapRef.current?.setCenter({ lat, lng }); googleMarkerRef.current?.setPosition({ lat, lng });
   };
 
-  // 7. Save API Key to localStorage
-  const handleSaveKey = () => {
-    setGoogleKey(tempKey.trim());
-    localStorage.setItem('ama_google_key', tempKey.trim());
-    setShowKeyInput(false);
-  };
+  // ── Save order to Supabase ────────────────────────────────
+  const saveOrder = async (method: PaymentMethod, paypalOrderId?: string) => {
+    try {
+      const orderNumber = `AMA-${Date.now().toString().slice(-8)}`;
+      const { data: order, error } = await supabase.from('orders').insert({
+        order_number: orderNumber,
+        customer_name: name.trim(),
+        customer_phone: phone.trim(),
+        delivery_address: address.trim(),
+        notes: notes.trim() || null,
+        subtotal: total,
+        total: total,
+        status: method === 'paypal' ? 'paid' : 'pending',
+        payment_method: method,
+        paypal_order_id: paypalOrderId || null,
+        gps_lat: coords.lat,
+        gps_lng: coords.lng,
+      }).select().single();
 
-  const handleClearKey = () => {
-    setTempKey('');
-    setGoogleKey('');
-    localStorage.removeItem('ama_google_key');
-    setMapEngine('leaflet');
-    setShowKeyInput(false);
-  };
+      if (error) throw error;
 
-  // 8. Order Placement (Sends details to WhatsApp)
-  const handleCheckout = () => {
-    if (!name.trim() || !address.trim() || !phone.trim()) {
-      alert("Por favor, completa los campos requeridos: Nombre, Dirección y Teléfono.");
-      return;
-    }
-
-    const dateStr = new Date().toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short' });
-    const formattedTotal = total.toLocaleString('es-CU');
-    
-    // Generate order products text
-    const itemsText = cart.map((item, index) => {
-      let text = `📦 *${item.quantity}x ${item.title}* - CUP $${(item.price * item.quantity).toLocaleString('es-CU')}`;
-      if (item.isCombo && item.comboItems && item.comboItems.length > 0) {
-        const comboDetails = item.comboItems.map(ci => `   🔹 ${ci.quantity}× ${ci.name}`).join('\n');
-        text += `\n${comboDetails}`;
+      if (order) {
+        await supabase.from('order_items').insert(
+          cart.map(item => ({
+            order_id: order.id,
+            product_name: item.title,
+            quantity: item.quantity,
+            unit_price: item.price,
+            total_price: item.price * item.quantity,
+          }))
+        );
       }
-      return text;
+      return orderNumber;
+    } catch (err) {
+      console.error('Error saving order:', err);
+      return `AMA-${Date.now().toString().slice(-8)}`;
+    }
+  };
+
+  // ── Send WhatsApp ─────────────────────────────────────────
+  const sendWhatsApp = (method: PaymentMethod, orderNumber: string, paypalId?: string) => {
+    const dateStr = new Date().toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short' });
+    const itemsText = cart.map(item => {
+      let t = `📦 *${item.quantity}x ${item.title}* — CUP ${(item.price * item.quantity).toLocaleString('es-CU')}`;
+      if (item.isCombo && item.comboItems?.length)
+        t += '\n' + item.comboItems.map(ci => `   🔹 ${ci.quantity}× ${ci.name}`).join('\n');
+      return t;
     }).join('\n\n');
-
-    // Maps Coordinate Links
     const gpsLink = `https://www.google.com/maps/place/${coords.lat},${coords.lng}`;
+    const paymentLine = method === 'paypal'
+      ? `💳 *Pago:* PayPal ✅ (ID: ${paypalId})\n💵 *USD pagado:* $${totalUSD}`
+      : '💵 *Pago:* Contra entrega';
 
-    // Compile message
-    const message = `⚡ *NUEVO PEDIDO EN AMA La Habana* ⚡
+    const message = `🌿 *NUEVO PEDIDO AMA* #${orderNumber} 🌿
 📆 *Fecha:* ${dateStr}
-----------------------------------
+──────────────────────
 👤 *Cliente:* ${name.trim()}
 📞 *Teléfono:* ${phone.trim()}
 📍 *Dirección:* ${address.trim()}
-🧭 *Coordenadas de Entrega:* ${gpsLink}
+🧭 *Ubicación:* ${gpsLink}
 📝 *Notas:* ${notes.trim() || 'Ninguna'}
-
-----------------------------------
-🛒 *PRODUCTOS DEL PEDIDO:*
+${paymentLine}
+──────────────────────
+🛒 *PRODUCTOS:*
 ${itemsText}
+──────────────────────
+💰 *TOTAL:* *CUP ${total.toLocaleString('es-CU')}*
+──────────────────────
+✅ ¡Gracias por comprar en AMA! Entrega en 24h 🌿`;
 
-----------------------------------
-💰 *TOTAL A PAGAR:* *CUP $${formattedTotal}*
-----------------------------------
-🚗 ¡El pedido llegará en menos de 24 horas! ¡Gracias por comprar en AMA! 🚗⚡`;
+    window.open(`https://wa.me/${WA_NUMBER}?text=${encodeURIComponent(message)}`, '_blank');
+  };
 
-    const encodedMessage = encodeURIComponent(message);
-    // WhatsApp redirect to configured number
-    const whatsappUrl = `https://wa.me/5355542936?text=${encodedMessage}`;
-    
-    window.open(whatsappUrl, '_blank');
+  // ── Validate form ─────────────────────────────────────────
+  const validateForm = () => {
+    if (!name.trim()) { setFormError('Por favor ingresa tu nombre.'); return false; }
+    if (!address.trim()) { setFormError('Por favor ingresa tu dirección.'); return false; }
+    if (!phone.trim()) { setFormError('Por favor ingresa tu teléfono.'); return false; }
+    setFormError('');
+    return true;
+  };
+
+  // ── WhatsApp checkout ─────────────────────────────────────
+  const handleWhatsAppCheckout = async () => {
+    if (!validateForm()) return;
+    const orderNumber = await saveOrder('whatsapp');
+    sendWhatsApp('whatsapp', orderNumber);
+    setOrderedVia('whatsapp');
     setOrdered(true);
     clearCart();
   };
 
+  // ── PayPal handlers ───────────────────────────────────────
+  const createPayPalOrder = (_data: Record<string, unknown>, actions: any) => {
+    if (!validateForm()) return Promise.reject(new Error('Formulario incompleto'));
+    return actions.order.create({
+      purchase_units: [{
+        amount: { value: totalUSD, currency_code: 'USD' },
+        description: `AMA Store — Pedido La Habana (${cart.length} producto${cart.length > 1 ? 's' : ''})`,
+      }],
+    });
+  };
+
+  const onPayPalApprove = async (_data: Record<string, unknown>, actions: any) => {
+    const details = await actions.order.capture();
+    const orderNumber = await saveOrder('paypal', details.id);
+    sendWhatsApp('paypal', orderNumber, details.id);
+    setOrderedVia('paypal');
+    setOrdered(true);
+    clearCart();
+  };
+
+  // ── Google key handlers ───────────────────────────────────
+  const handleSaveKey = () => {
+    const k = tempKey.trim();
+    setGoogleKey(k); localStorage.setItem('ama_google_key', k);
+    setShowKeyPanel(false); setTempKey('');
+  };
+  const handleClearKey = () => {
+    setGoogleKey(''); localStorage.removeItem('ama_google_key');
+    setMapEngine('leaflet'); setGoogleLoaded(false);
+    setShowKeyPanel(false); setTempKey('');
+  };
+
+  const inputStyle: React.CSSProperties = {
+    backgroundColor: 'var(--color-surface-container)',
+    border: '1px solid var(--color-outline-variant)',
+    color: 'var(--color-on-surface)',
+    borderRadius: '0.75rem',
+    padding: '12px 16px',
+    width: '100%',
+    fontSize: '14px',
+    outline: 'none',
+    transition: 'border-color 0.2s',
+  };
+
+  // ── Success screen ────────────────────────────────────────
   if (ordered) {
-    return <div className="min-h-screen bg-[#020408] text-white overflow-x-hidden font-sans">
+    return (
+      <div className="min-h-screen" style={{ backgroundColor: 'var(--color-surface)', color: 'var(--color-on-surface)' }}>
         <Navbar navigate={navigate} />
-        <main className="pt-32 pb-24 flex flex-col items-center justify-center text-center px-6 animate-in fade-in zoom-in-95 duration-500">
-          <div className="text-7xl mb-6 relative">
-            <span className="relative z-10 animate-bounce block">🎉</span>
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-24 h-24 bg-[#0055FF]/20 rounded-full blur-xl animate-pulse"></div>
-          </div>
-          <h1 className="text-4xl md:text-5xl font-black mb-4 tracking-tight">¡Pedido enviado a WhatsApp!</h1>
-          <p className="text-gray-400 text-lg mb-2 max-w-md leading-relaxed">
-            Hemos abierto un chat con nuestro equipo. Por favor, <span className="text-[#0055FF] font-black">envía el mensaje generado</span> en tu WhatsApp para confirmar tu pedido.
+        <main className="pt-32 pb-24 flex flex-col items-center justify-center text-center px-6">
+          <div className="text-7xl mb-6">{orderedVia === 'paypal' ? '💳' : '🎉'}</div>
+          <h1 className="font-display font-bold mb-4" style={{ color: 'var(--color-primary)', fontSize: 'clamp(1.75rem,4vw,2.5rem)' }}>
+            {orderedVia === 'paypal' ? '¡Pago completado con PayPal!' : '¡Pedido enviado a WhatsApp!'}
+          </h1>
+          <p className="text-lg mb-2 max-w-md leading-relaxed" style={{ color: 'var(--color-on-surface-variant)' }}>
+            {orderedVia === 'paypal'
+              ? <>Tu pago fue procesado exitosamente. <span style={{ color: 'var(--color-primary)', fontWeight: 600 }}>Envía el mensaje de WhatsApp</span> para coordinar la entrega.</>
+              : <>Por favor <span style={{ color: 'var(--color-primary)', fontWeight: 600 }}>envía el mensaje generado</span> en WhatsApp para confirmar tu pedido.</>
+            }
           </p>
-          <p className="text-gray-500 text-sm mb-10">¡Tu pedido llegará en menos de 24 horas en nuestra Lambo! 🚗⚡</p>
-          <button onClick={() => navigate?.('home')} className="px-8 py-4 bg-[#0055FF] text-white rounded-xl font-black text-lg hover:bg-[#0044CC] transition-all hover:scale-105 active:scale-95 shadow-[0_0_20px_rgba(0,85,255,0.4)] cursor-pointer">
+          <p className="text-sm mb-10" style={{ color: 'var(--color-on-surface-variant)' }}>¡Tu pedido llegará en menos de 24 horas! 🌿</p>
+          <button onClick={() => navigate?.('home')} className="label-caps px-8 py-4 rounded-xl transition-all hover:opacity-90 active:scale-95" style={{ backgroundColor: 'var(--color-primary)', color: 'white' }}>
             Volver al Inicio
           </button>
         </main>
-        <Footer />
-      </div>;
+        <Footer onAdminClick={() => navigate?.('admin-login')} />
+      </div>
+    );
   }
 
-  return <div className="min-h-screen bg-[#020408] text-white overflow-x-hidden font-sans">
+  return (
+    <div className="min-h-screen overflow-x-hidden" style={{ backgroundColor: 'var(--color-surface)', color: 'var(--color-on-surface)' }}>
       <Navbar navigate={navigate} />
-      
-      {/* Dynamic Leaflet Dark style injection */}
+
       <style>{`
-        .dark-leaflet-map .leaflet-tile {
-          filter: invert(100%) hue-rotate(180deg) brightness(85%) contrast(90%);
-        }
-        .dark-leaflet-map {
-          background: #070c1a !important;
-        }
-        .leaflet-container {
-          height: 100%;
-          width: 100%;
-          z-index: 10;
-        }
-        .leaflet-bar {
-          border: 1px solid rgba(255,255,255,0.1) !important;
-          background-color: rgba(11, 17, 32, 0.8) !important;
-          border-radius: 12px !important;
-          overflow: hidden;
-        }
-        .leaflet-bar a {
-          background-color: rgba(11, 17, 32, 0.8) !important;
-          color: white !important;
-          border-bottom: 1px solid rgba(255,255,255,0.1) !important;
-          transition: all 0.2s;
-        }
-        .leaflet-bar a:hover {
-          background-color: #0055FF !important;
-          color: white !important;
-        }
+        .leaflet-container { height: 100%; width: 100%; z-index: 1; }
+        .leaflet-bar { border: 1px solid var(--color-outline-variant) !important; border-radius: 8px !important; overflow: hidden; box-shadow: none !important; }
+        .leaflet-bar a { background-color: white !important; color: var(--color-on-surface) !important; border-bottom: 1px solid var(--color-outline-variant) !important; }
+        .leaflet-bar a:hover { background-color: var(--color-primary) !important; color: white !important; }
+        .ama-input:focus { border-color: var(--color-primary) !important; }
       `}</style>
 
       <main className="pt-24 pb-24">
-        <div className="max-w-7xl mx-auto px-6">
-          {/* Header */}
-          <div className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
-            <div>
-              <p className="text-[#0055FF] font-bold text-sm uppercase tracking-widest mb-3">Tu pedido</p>
-              <h1 className="text-4xl md:text-5xl font-black tracking-tight">Carrito de Compras</h1>
-            </div>
-            
-            {/* Google Key Configuration Button */}
-            <div className="relative">
-              <button 
-                onClick={() => setShowKeyInput(!showKeyInput)}
-                className="flex items-center gap-2 px-4 py-2 bg-white/5 border border-white/10 hover:border-[#0055FF] rounded-xl text-xs font-bold text-gray-400 hover:text-white transition-all cursor-pointer"
-              >
-                <Settings size={14} className={googleKey ? "text-emerald-400" : ""} />
-                <span>{googleKey ? "Google Maps Activo" : "Configurar Google Maps"}</span>
-              </button>
+        <div className="max-w-[1280px] mx-auto px-5 md:px-16">
 
-              {showKeyInput && (
-                <div className="absolute right-0 mt-3 w-80 glass border border-white/10 rounded-2xl p-5 shadow-2xl z-50 animate-in fade-in slide-in-from-top-2">
-                  <h4 className="font-black text-sm mb-2 text-white flex items-center gap-1.5">
-                    <Compass size={15} className="text-[#0055FF]" />
-                    Configurar Google Maps API Key
-                  </h4>
-                  <p className="text-[11px] text-gray-400 mb-4">
-                    Coloca tu API Key de Google Cloud Console para activar el autocompletado y mapas oficiales de Google.
-                  </p>
-                  <div className="flex flex-col gap-3">
-                    <input 
-                      type="password" 
-                      value={tempKey}
-                      onChange={e => setTempKey(e.target.value)}
-                      placeholder="AIzaSy..." 
-                      className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-[#0055FF]"
-                    />
-                    <div className="flex gap-2 justify-end">
-                      {googleKey && (
-                        <button 
-                          onClick={handleClearKey}
-                          className="px-3 py-1.5 bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 rounded-lg text-xs font-bold transition-all cursor-pointer"
-                        >
-                          Eliminar
-                        </button>
-                      )}
-                      <button 
-                        onClick={() => setShowKeyInput(false)}
-                        className="px-3 py-1.5 bg-white/5 text-gray-400 hover:text-white rounded-lg text-xs font-bold transition-all cursor-pointer"
-                      >
-                        Cancelar
-                      </button>
-                      <button 
-                        onClick={handleSaveKey}
-                        className="px-3 py-1.5 bg-[#0055FF] text-white hover:bg-[#0044CC] rounded-lg text-xs font-bold transition-all cursor-pointer"
-                      >
-                        Guardar
-                      </button>
-                    </div>
+          {/* Header */}
+          <div className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
+            <div>
+              <span className="label-caps block mb-2" style={{ color: 'var(--color-gold-muted)' }}>TU PEDIDO</span>
+              <h1 className="font-display font-bold" style={{ color: 'var(--color-primary)', fontSize: 'clamp(2rem,4vw,3rem)', letterSpacing: '-0.02em' }}>
+                Carrito de Compras
+              </h1>
+            </div>
+            {/* Google Maps key */}
+            <div className="relative">
+              <button onClick={() => { setShowKeyPanel(!showKeyPanel); setTempKey(googleKey); }}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl label-caps transition-all"
+                style={{ backgroundColor: 'var(--color-surface-container)', border: '1px solid var(--color-outline-variant)', color: googleKey ? '#10b981' : 'var(--color-on-surface-variant)' }}>
+                <span className="material-symbols-outlined text-[16px]">map</span>
+                {googleKey ? 'Google Maps Activo' : 'Activar Google Maps'}
+              </button>
+              {showKeyPanel && (
+                <div className="absolute right-0 mt-3 w-80 rounded-xl p-5 shadow-2xl z-50"
+                  style={{ backgroundColor: 'var(--color-surface-container-lowest)', border: '1px solid var(--color-outline-variant)' }}>
+                  <h4 className="font-display font-semibold text-sm mb-1" style={{ color: 'var(--color-primary)' }}>Google Maps API Key</h4>
+                  <p className="text-xs mb-4" style={{ color: 'var(--color-on-surface-variant)' }}>Pega tu clave de Google Cloud Console para activar Maps.</p>
+                  <input type="password" value={tempKey} onChange={e => setTempKey(e.target.value)} placeholder="AIzaSy..." className="ama-input mb-3" style={inputStyle}
+                    onFocus={e => (e.currentTarget.style.borderColor = 'var(--color-primary)')}
+                    onBlur={e => (e.currentTarget.style.borderColor = 'var(--color-outline-variant)')} />
+                  <div className="flex gap-2 justify-end">
+                    {googleKey && <button onClick={handleClearKey} className="label-caps px-3 py-2 rounded-lg text-[10px]" style={{ backgroundColor: 'rgba(186,26,26,0.1)', color: 'var(--color-error)', border: '1px solid rgba(186,26,26,0.2)' }}>Eliminar</button>}
+                    <button onClick={() => setShowKeyPanel(false)} className="label-caps px-3 py-2 rounded-lg text-[10px]" style={{ backgroundColor: 'var(--color-surface-container)', color: 'var(--color-on-surface-variant)' }}>Cancelar</button>
+                    <button onClick={handleSaveKey} className="label-caps px-3 py-2 rounded-lg text-[10px] hover:opacity-90" style={{ backgroundColor: 'var(--color-primary)', color: 'white' }}>Guardar</button>
                   </div>
                 </div>
               )}
             </div>
           </div>
 
-          {/* Delivery Banner */}
-          <div className="mb-10 glass rounded-2xl px-6 py-4 border border-[#0055FF]/30 flex items-center gap-4 bg-[#0055FF]/5">
-            <Zap size={22} className="text-[#0055FF] shrink-0" />
-            <p className="text-sm text-gray-200">
-              <span className="text-white font-black">⚡ Tu pedido llegará en menos de 24 horas</span>
-              {' '}— en nuestra Lambo 🚗
+          {/* Delivery banner */}
+          <div className="mb-10 rounded-xl px-6 py-4 flex items-center gap-4" style={{ backgroundColor: 'rgba(0,53,39,0.06)', border: '1px solid rgba(0,53,39,0.15)' }}>
+            <span className="material-symbols-outlined shrink-0" style={{ color: 'var(--color-primary)' }}>local_shipping</span>
+            <p className="text-sm" style={{ color: 'var(--color-on-surface)' }}>
+              <span style={{ fontWeight: 700 }}>Tu pedido llegará en menos de 24 horas</span> — entrega directa a tu puerta 🌿
             </p>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-10 lg:gap-14">
-            {/* Cart Items */}
+
+            {/* Cart items */}
             <div className="lg:col-span-3 flex flex-col gap-4">
-              {cart.length === 0 ? <div className="glass rounded-3xl p-16 border border-white/10 flex flex-col items-center text-center">
+              {cart.length === 0 ? (
+                <div className="rounded-xl p-16 flex flex-col items-center text-center ambient-shadow"
+                  style={{ backgroundColor: 'var(--color-surface-container-low)', border: '1px solid var(--color-outline-variant)' }}>
                   <p className="text-5xl mb-4">🛒</p>
-                  <p className="text-gray-400 text-lg font-medium">Tu carrito está vacío</p>
-                  <button onClick={() => navigate?.('catalog')} className="mt-6 px-6 py-3 bg-[#0055FF] text-white rounded-xl font-bold hover:bg-[#0044CC] transition-colors cursor-pointer">
+                  <p className="font-medium mb-2" style={{ color: 'var(--color-on-surface)' }}>Tu carrito está vacío</p>
+                  <p className="text-sm mb-6" style={{ color: 'var(--color-on-surface-variant)' }}>Explora nuestro catálogo y agrega productos</p>
+                  <button onClick={() => navigate?.('catalog')} className="label-caps px-6 py-3 rounded-xl hover:opacity-90 active:scale-95" style={{ backgroundColor: 'var(--color-primary)', color: 'white' }}>
                     Ver catálogo
                   </button>
-                </div> : cart.map(item => <div key={item.id} className="glass rounded-2xl p-5 border border-white/10 flex items-center gap-5">
+                </div>
+              ) : (
+                cart.map(item => (
+                  <div key={item.id} className="rounded-xl p-5 flex items-center gap-4 ambient-shadow"
+                    style={{ backgroundColor: 'var(--color-surface-container-low)', border: '1px solid var(--color-outline-variant)' }}>
                     <div className="w-20 h-20 rounded-xl overflow-hidden shrink-0">
                       <img src={item.image} alt={item.title} className="w-full h-full object-cover" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">{item.category}</span>
-                      <h3 className="font-black text-white text-base truncate">{item.title}</h3>
+                      <span className="label-caps block mb-0.5" style={{ color: 'var(--color-on-surface-variant)' }}>{item.category}</span>
+                      <h3 className="font-display font-semibold text-base truncate" style={{ color: 'var(--color-primary)' }}>{item.title}</h3>
                       {item.isCombo && item.comboItems && (
-                        <div className="mt-1.5 flex flex-wrap gap-1 text-[11px] text-gray-400">
-                          {item.comboItems.map((ci, index) => (
-                            <span key={index} className="bg-white/5 px-2 py-0.5 rounded border border-white/10">
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {item.comboItems.map((ci, i) => (
+                            <span key={i} className="text-[11px] px-2 py-0.5 rounded"
+                              style={{ backgroundColor: 'var(--color-surface-container)', color: 'var(--color-on-surface-variant)', border: '1px solid var(--color-outline-variant)' }}>
                               {ci.quantity}× {ci.name}
                             </span>
                           ))}
                         </div>
                       )}
-                      <p className="text-[#0055FF] font-black text-sm mt-0.5">
-                        <span className="text-gray-500 font-medium mr-1 text-xs">CUP</span>
-                        ${item.price.toLocaleString('es-CU')}
+                      <p className="text-sm font-semibold mt-1" style={{ color: 'var(--color-secondary)' }}>
+                        CUP ${item.price.toLocaleString('es-CU')}
                       </p>
                     </div>
                     <div className="flex items-center gap-3 shrink-0">
                       <div className="flex items-center gap-2">
-                        <button onClick={() => updateQuantity(item.id, -1)} className="w-7 h-7 rounded-full border border-white/20 flex items-center justify-center hover:border-[#FF2D55] hover:text-[#FF2D55] transition-colors cursor-pointer">
-                          <Minus size={12} />
+                        <button onClick={() => updateQuantity(item.id, -1)} className="w-7 h-7 rounded-full flex items-center justify-center transition-all"
+                          style={{ border: '1px solid var(--color-outline-variant)', color: 'var(--color-on-surface)' }}
+                          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--color-secondary)'; (e.currentTarget as HTMLElement).style.color = 'var(--color-secondary)'; }}
+                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--color-outline-variant)'; (e.currentTarget as HTMLElement).style.color = 'var(--color-on-surface)'; }}>
+                          <span className="material-symbols-outlined text-[14px]">remove</span>
                         </button>
-                        <span className="w-5 text-center font-black text-sm">{item.quantity}</span>
-                        <button onClick={() => updateQuantity(item.id, 1)} className="w-7 h-7 rounded-full border border-white/20 flex items-center justify-center hover:border-[#0055FF] hover:text-[#0055FF] transition-colors cursor-pointer">
-                          <Plus size={12} />
+                        <span className="w-5 text-center font-bold text-sm" style={{ color: 'var(--color-on-surface)' }}>{item.quantity}</span>
+                        <button onClick={() => updateQuantity(item.id, 1)} className="w-7 h-7 rounded-full flex items-center justify-center transition-all"
+                          style={{ border: '1px solid var(--color-outline-variant)', color: 'var(--color-on-surface)' }}
+                          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--color-primary)'; (e.currentTarget as HTMLElement).style.color = 'var(--color-primary)'; }}
+                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--color-outline-variant)'; (e.currentTarget as HTMLElement).style.color = 'var(--color-on-surface)'; }}>
+                          <span className="material-symbols-outlined text-[14px]">add</span>
                         </button>
                       </div>
-                      <button onClick={() => removeFromCart(item.id)} className="w-7 h-7 flex items-center justify-center text-gray-500 hover:text-[#FF2D55] transition-colors cursor-pointer">
-                        <Trash2 size={14} />
+                      <button onClick={() => removeFromCart(item.id)} className="w-7 h-7 flex items-center justify-center transition-colors"
+                        style={{ color: 'var(--color-on-surface-variant)' }}
+                        onMouseEnter={e => (e.currentTarget.style.color = 'var(--color-error)')}
+                        onMouseLeave={e => (e.currentTarget.style.color = 'var(--color-on-surface-variant)')}>
+                        <span className="material-symbols-outlined text-[16px]">delete</span>
                       </button>
                     </div>
-                  </div>)}
+                  </div>
+                ))
+              )}
             </div>
 
-            {/* Right Panel: Summary + Form */}
+            {/* Right panel */}
             <div className="lg:col-span-2 flex flex-col gap-6">
-              {/* Order Summary */}
-              <div className="glass rounded-3xl p-6 border border-white/10 flex flex-col gap-4">
-                <h3 className="font-black text-white text-lg">Resumen del pedido</h3>
+
+              {/* Order summary */}
+              <div className="rounded-xl p-6 ambient-shadow flex flex-col gap-4"
+                style={{ backgroundColor: 'var(--color-surface-container-lowest)', border: '1px solid var(--color-outline-variant)' }}>
+                <h3 className="font-display font-semibold text-lg" style={{ color: 'var(--color-primary)' }}>Resumen del pedido</h3>
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-400">Subtotal</span>
-                  <span className="text-white font-bold">CUP ${subtotal.toLocaleString('es-CU')}</span>
+                  <span style={{ color: 'var(--color-on-surface-variant)' }}>Subtotal</span>
+                  <span style={{ color: 'var(--color-on-surface)', fontWeight: 600 }}>CUP ${total.toLocaleString('es-CU')}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-400">Envío</span>
-                  <span className="text-emerald-400 font-bold">Gratis 🎉</span>
+                  <span style={{ color: 'var(--color-on-surface-variant)' }}>Envío</span>
+                  <span style={{ color: '#10b981', fontWeight: 600 }}>Gratis 🎉</span>
                 </div>
-                <div className="border-t border-white/10" />
+                {paymentMethod === 'paypal' && (
+                  <div className="flex justify-between text-sm">
+                    <span style={{ color: 'var(--color-on-surface-variant)' }}>Equivalente USD</span>
+                    <span style={{ color: 'var(--color-secondary)', fontWeight: 600 }}>${totalUSD} USD</span>
+                  </div>
+                )}
+                <div className="border-t" style={{ borderColor: 'var(--color-outline-variant)' }} />
                 <div className="flex justify-between items-center">
-                  <span className="text-white font-black">Total</span>
-                  <span className="text-2xl font-black">
-                    <span className="text-sm font-medium text-gray-400 mr-1">CUP</span>
-                    ${total.toLocaleString('es-CU')}
+                  <span className="font-semibold" style={{ color: 'var(--color-on-surface)' }}>Total</span>
+                  <span className="text-2xl font-semibold" style={{ color: 'var(--color-secondary)', fontFamily: 'Inter' }}>
+                    CUP ${total.toLocaleString('es-CU')}
                   </span>
                 </div>
               </div>
 
-              {/* Delivery Form */}
-              <div className="glass rounded-3xl p-6 border border-white/10 flex flex-col gap-5">
-                <h3 className="font-black text-white text-lg">Datos de entrega</h3>
+              {/* Delivery form */}
+              <div className="rounded-xl p-6 ambient-shadow flex flex-col gap-5"
+                style={{ backgroundColor: 'var(--color-surface-container-lowest)', border: '1px solid var(--color-outline-variant)' }}>
+                <h3 className="font-display font-semibold text-lg" style={{ color: 'var(--color-primary)' }}>Datos de entrega</h3>
 
                 {/* Name */}
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-xs text-gray-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
-                    <User size={13} className="text-[#0055FF]" />
-                    <span>Nombre Completo *</span>
+                  <label className="label-caps flex items-center gap-1.5" style={{ color: 'var(--color-on-surface-variant)' }}>
+                    <span className="material-symbols-outlined text-[14px]" style={{ color: 'var(--color-primary)' }}>person</span>
+                    Nombre Completo *
                   </label>
-                  <input 
-                    type="text" 
-                    value={name} 
-                    onChange={e => setName(e.target.value)} 
-                    placeholder="Tu nombre y apellidos" 
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-600 text-sm focus:outline-none focus:border-[#0055FF] transition-colors" 
-                  />
+                  <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Tu nombre y apellidos" className="ama-input" style={inputStyle}
+                    onFocus={e => (e.currentTarget.style.borderColor = 'var(--color-primary)')}
+                    onBlur={e => (e.currentTarget.style.borderColor = 'var(--color-outline-variant)')} />
                 </div>
 
-                {/* Address + Autocomplete */}
+                {/* Address */}
                 <div className="flex flex-col gap-1.5 relative">
-                  <label className="text-xs text-gray-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
-                    <MapPin size={13} className="text-[#FF2D55]" />
-                    <span>Dirección en La Habana *</span>
+                  <label className="label-caps flex items-center gap-1.5" style={{ color: 'var(--color-on-surface-variant)' }}>
+                    <span className="material-symbols-outlined text-[14px]" style={{ color: 'var(--color-secondary)' }}>location_on</span>
+                    Dirección en La Habana *
                   </label>
-                  <div className="relative flex items-center">
-                    <input 
-                      type="text" 
-                      ref={addressInputRef}
-                      value={address} 
-                      onChange={e => handleAddressChange(e.target.value)} 
-                      onFocus={() => address.trim().length >= 3 && mapEngine !== 'google' && setShowSuggestions(true)}
-                      placeholder="Escribe tu calle, número, apto, reparto..." 
-                      className="w-full bg-white/5 border border-white/10 rounded-xl pl-4 pr-10 py-3 text-white placeholder-gray-600 text-sm focus:outline-none focus:border-[#0055FF] transition-colors" 
-                    />
-                    <div className="absolute right-3.5 text-gray-500">
-                      {loadingSuggestions ? (
-                        <div className="w-4 h-4 border-2 border-t-transparent border-[#0055FF] rounded-full animate-spin"></div>
-                      ) : (
-                        <Search size={16} />
-                      )}
+                  <div className="relative">
+                    <input type="text" value={address} onChange={e => handleAddressChange(e.target.value)}
+                      onFocus={() => address.trim().length >= 3 && setShowSuggestions(true)}
+                      placeholder="Escribe tu calle, número, reparto…" className="ama-input"
+                      style={{ ...inputStyle, paddingRight: '40px' }}
+                      onFocusCapture={e => (e.currentTarget.style.borderColor = 'var(--color-primary)')}
+                      onBlurCapture={e => (e.currentTarget.style.borderColor = 'var(--color-outline-variant)')} />
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--color-on-surface-variant)' }}>
+                      {loadingSuggestions
+                        ? <div className="w-4 h-4 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--color-primary)', borderTopColor: 'transparent' }} />
+                        : <span className="material-symbols-outlined text-[18px]">search</span>}
                     </div>
                   </div>
-
-                  {/* OpenStreetMap Suggestions Popover */}
-                  {showSuggestions && suggestions.length > 0 && mapEngine !== 'google' && (
+                  {showSuggestions && suggestions.length > 0 && (
                     <>
                       <div className="fixed inset-0 z-40" onClick={() => setShowSuggestions(false)} />
-                      <div className="absolute top-[100%] left-0 right-0 mt-2 bg-[#0b1120] border border-white/10 rounded-xl p-2 shadow-2xl z-50 max-h-60 overflow-y-auto">
+                      <div className="absolute top-full left-0 right-0 mt-1 rounded-xl p-2 shadow-xl z-50 max-h-56 overflow-y-auto"
+                        style={{ backgroundColor: 'var(--color-surface-container-lowest)', border: '1px solid var(--color-outline-variant)' }}>
                         {suggestions.map((sug, i) => (
-                          <button 
-                            key={i} 
-                            type="button"
-                            onClick={() => selectSuggestion(sug)}
-                            className="w-full text-left px-3 py-2.5 rounded-lg hover:bg-[#0055FF]/10 text-xs text-gray-300 hover:text-white transition-all border-b border-white/5 last:border-0 truncate cursor-pointer"
-                          >
+                          <button key={i} type="button" onClick={() => selectSuggestion(sug)}
+                            className="w-full text-left px-3 py-2.5 rounded-lg text-xs truncate transition-colors"
+                            style={{ color: 'var(--color-on-surface-variant)' }}
+                            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--color-surface-container)'; (e.currentTarget as HTMLElement).style.color = 'var(--color-on-surface)'; }}
+                            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent'; (e.currentTarget as HTMLElement).style.color = 'var(--color-on-surface-variant)'; }}>
                             📍 {sug.display_name}
                           </button>
                         ))}
@@ -648,70 +628,136 @@ ${itemsText}
                   )}
                 </div>
 
-                {/* Telephone */}
+                {/* Phone */}
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-xs text-gray-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
-                    <Phone size={13} className="text-[#0055FF]" />
-                    <span>Teléfono Móvil *</span>
+                  <label className="label-caps flex items-center gap-1.5" style={{ color: 'var(--color-on-surface-variant)' }}>
+                    <span className="material-symbols-outlined text-[14px]" style={{ color: 'var(--color-primary)' }}>phone</span>
+                    Teléfono Móvil *
                   </label>
-                  <input 
-                    type="tel" 
-                    value={phone} 
-                    onChange={e => setPhone(e.target.value)} 
-                    placeholder="Ej: 55542936" 
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-600 text-sm focus:outline-none focus:border-[#0055FF] transition-colors" 
-                  />
+                  <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="Ej: 55542936" className="ama-input" style={inputStyle}
+                    onFocus={e => (e.currentTarget.style.borderColor = 'var(--color-primary)')}
+                    onBlur={e => (e.currentTarget.style.borderColor = 'var(--color-outline-variant)')} />
                 </div>
 
-                {/* Map Selector */}
-                <div className="flex flex-col gap-2 mt-2">
-                  <div className="flex justify-between items-center">
-                    <label className="text-xs text-gray-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
-                      <Navigation size={13} className="text-emerald-400 animate-pulse" />
-                      <span>Ubicación Exacta en La Habana</span>
-                    </label>
-                    <span className="text-[10px] text-gray-500 font-medium">
-                      {mapEngine === 'google' ? 'Google Maps activo 🌐' : 'Leaflet libre (OSM) 🗺️'}
+                {/* Map */}
+                <div className="flex flex-col gap-2">
+                  <label className="label-caps flex items-center justify-between" style={{ color: 'var(--color-on-surface-variant)' }}>
+                    <span className="flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-[14px]" style={{ color: 'var(--color-primary)' }}>map</span>
+                      Ubicación en el Mapa
                     </span>
-                  </div>
-                  
-                  {/* Map Wrapper */}
-                  <div className="h-56 w-full rounded-2xl overflow-hidden border border-white/10 relative shadow-inner bg-slate-900">
-                    <div ref={mapContainerRef} className={`h-full w-full ${mapEngine === 'leaflet' ? 'dark-leaflet-map' : ''}`} />
-                  </div>
-                  <p className="text-[10px] text-gray-500 leading-normal">
-                    📌 <span className="text-gray-400 font-bold">Arrastra el marcador azul</span> en el mapa para fijar tu ubicación exacta de entrega. Esto actualizará tu dirección.
-                  </p>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full"
+                      style={{ backgroundColor: mapEngine === 'google' ? 'rgba(16,185,129,0.12)' : 'var(--color-surface-container)', color: mapEngine === 'google' ? '#10b981' : 'var(--color-on-surface-variant)', border: '1px solid var(--color-outline-variant)' }}>
+                      {mapEngine === 'google' ? 'Google Maps' : 'OpenStreetMap'}
+                    </span>
+                  </label>
+                  <div ref={mapContainerRef} className="w-full rounded-xl overflow-hidden"
+                    style={{ height: '200px', border: '1px solid var(--color-outline-variant)', backgroundColor: 'var(--color-surface-container)' }} />
+                  <p className="text-xs" style={{ color: 'var(--color-on-surface-variant)' }}>Arrastra el pin para ajustar tu ubicación exacta.</p>
                 </div>
 
                 {/* Notes */}
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-xs text-gray-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
-                    <FileText size={13} className="text-gray-400" />
-                    <span>Notas e Indicaciones (Opcional)</span>
+                  <label className="label-caps flex items-center gap-1.5" style={{ color: 'var(--color-on-surface-variant)' }}>
+                    <span className="material-symbols-outlined text-[14px]" style={{ color: 'var(--color-on-surface-variant)' }}>notes</span>
+                    Notas adicionales
                   </label>
-                  <textarea 
-                    value={notes} 
-                    onChange={e => setNotes(e.target.value)} 
-                    placeholder="Referencias de color, entre qué calles, timbrar en altos..." 
-                    rows={3} 
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-600 text-sm focus:outline-none focus:border-[#0055FF] transition-colors resize-none" 
-                  />
+                  <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Instrucciones especiales…" rows={3} className="ama-input"
+                    style={{ ...inputStyle, resize: 'none' }}
+                    onFocus={e => (e.currentTarget.style.borderColor = 'var(--color-primary)')}
+                    onBlur={e => (e.currentTarget.style.borderColor = 'var(--color-outline-variant)')} />
                 </div>
 
-                {/* Checkout Button */}
-                <button 
-                  onClick={handleCheckout} 
-                  disabled={cart.length === 0} 
-                  className="w-full flex items-center justify-center gap-2 py-4 bg-[#FF2D55] text-white rounded-xl font-black text-base hover:bg-[#e02249] transition-all hover:scale-[1.02] active:scale-95 shadow-[0_0_20px_rgba(255,45,85,0.35)] disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none disabled:scale-100 mt-2 cursor-pointer"
-                >
-                  <Zap size={20} />
-                  <span>Enviar Pedido por WhatsApp</span>
-                </button>
+                {/* ── Payment method selector ── */}
+                <div className="flex flex-col gap-3">
+                  <span className="label-caps" style={{ color: 'var(--color-on-surface-variant)' }}>Método de pago</span>
 
-                <div className="flex items-center justify-center gap-2 text-xs text-gray-500">
-                  <ShieldCheck size={13} />
-                  <span>Pago en efectivo contra entrega en La Habana</span>
+                  {/* WhatsApp option */}
+                  <button onClick={() => setPaymentMethod('whatsapp')}
+                    className="flex items-center gap-4 p-4 rounded-xl text-left transition-all"
+                    style={{
+                      border: paymentMethod === 'whatsapp' ? '2px solid var(--color-primary)' : '1px solid var(--color-outline-variant)',
+                      backgroundColor: paymentMethod === 'whatsapp' ? 'rgba(0,53,39,0.04)' : 'var(--color-surface-container)',
+                    }}>
+                    <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: '#25D366' }}>
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
+                        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+                      </svg>
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-semibold text-sm" style={{ color: 'var(--color-on-surface)' }}>Pagar contra entrega</p>
+                      <p className="text-xs mt-0.5" style={{ color: 'var(--color-on-surface-variant)' }}>Confirma por WhatsApp y paga al recibir</p>
+                    </div>
+                    <div className="w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center"
+                      style={{ borderColor: paymentMethod === 'whatsapp' ? 'var(--color-primary)' : 'var(--color-outline-variant)' }}>
+                      {paymentMethod === 'whatsapp' && <div className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--color-primary)' }} />}
+                    </div>
+                  </button>
+
+                  {/* PayPal option */}
+                  <button onClick={() => setPaymentMethod('paypal')}
+                    className="flex items-center gap-4 p-4 rounded-xl text-left transition-all"
+                    style={{
+                      border: paymentMethod === 'paypal' ? '2px solid #0070BA' : '1px solid var(--color-outline-variant)',
+                      backgroundColor: paymentMethod === 'paypal' ? 'rgba(0,112,186,0.04)' : 'var(--color-surface-container)',
+                    }}>
+                    <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: '#003087' }}>
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
+                        <path d="M7.076 21.337H2.47a.641.641 0 0 1-.633-.74L4.944.901C5.026.382 5.474 0 5.998 0h7.46c2.57 0 4.578.543 5.69 1.81 1.01 1.15 1.304 2.42 1.012 4.287-.023.143-.047.288-.077.437-.983 5.05-4.349 6.797-8.647 6.797h-2.19c-.524 0-.968.382-1.05.9l-1.12 7.106zm14.146-14.42a3.35 3.35 0 0 0-.607-.541c-.013.076-.026.175-.041.254-.93 4.778-4.005 7.201-9.138 7.201h-2.19a.563.563 0 0 0-.556.479l-1.187 7.527h-.506l-.24 1.516a.56.56 0 0 0 .554.647h3.882c.46 0 .85-.334.922-.788.06-.26.76-4.852.816-5.09a.932.932 0 0 1 .923-.788h.58c3.76 0 6.705-1.528 7.565-5.946.36-1.847.174-3.388-.777-4.471z" />
+                      </svg>
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-semibold text-sm" style={{ color: 'var(--color-on-surface)' }}>Pagar con PayPal</p>
+                      <p className="text-xs mt-0.5" style={{ color: 'var(--color-on-surface-variant)' }}>
+                        Pago seguro en USD · ${totalUSD} USD
+                      </p>
+                    </div>
+                    <div className="w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center"
+                      style={{ borderColor: paymentMethod === 'paypal' ? '#0070BA' : 'var(--color-outline-variant)' }}>
+                      {paymentMethod === 'paypal' && <div className="w-2 h-2 rounded-full" style={{ backgroundColor: '#0070BA' }} />}
+                    </div>
+                  </button>
+                </div>
+
+                {/* Form error */}
+                {formError && (
+                  <p className="text-sm px-3 py-2 rounded-lg" style={{ backgroundColor: 'rgba(186,26,26,0.08)', color: 'var(--color-error)', border: '1px solid rgba(186,26,26,0.2)' }}>
+                    ⚠️ {formError}
+                  </p>
+                )}
+
+                {/* CTA */}
+                <div className="mt-2">
+                  {paymentMethod === 'whatsapp' ? (
+                    <button
+                      onClick={handleWhatsAppCheckout}
+                      disabled={cart.length === 0}
+                      className="w-full flex items-center justify-center gap-2 py-4 rounded-xl label-caps transition-all active:scale-95 hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
+                      style={{ backgroundColor: '#25D366', color: 'white' }}
+                    >
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
+                        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+                      </svg>
+                      Confirmar por WhatsApp
+                    </button>
+                  ) : (
+                    <PayPalCheckoutButton
+                      totalUSD={totalUSD}
+                      disabled={cart.length === 0}
+                      onValidate={validateForm}
+                      createOrder={createPayPalOrder}
+                      onApprove={onPayPalApprove}
+                      onError={(err) => {
+                        console.error('PayPal error:', err);
+                        setFormError('Error al procesar el pago. Intenta de nuevo.');
+                      }}
+                    />
+                  )}
+                </div>
+
+                <div className="flex items-center gap-1.5 text-xs justify-center" style={{ color: 'var(--color-on-surface-variant)' }}>
+                  <span className="material-symbols-outlined text-[14px]">verified_user</span>
+                  <span>Transacciones 100% seguras · Sin riesgo</span>
                 </div>
               </div>
             </div>
@@ -719,6 +765,7 @@ ${itemsText}
         </div>
       </main>
 
-      <Footer />
-    </div>;
+      <Footer onAdminClick={() => navigate?.('admin-login')} />
+    </div>
+  );
 };

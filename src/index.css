@@ -1,166 +1,150 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Inter:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap');
 @import "tailwindcss";
 @plugin "tailwindcss-animate";
 
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme inline {
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
-  --font-heading: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Playfair Display", Georgia, serif;
 
-  --color-background: #020408;
-  --color-foreground: #ffffff;
+  /* AMA Premium Palette */
+  --color-primary: #003527;
+  --color-primary-container: #064e3b;
+  --color-primary-fixed: #b0f0d6;
+  --color-primary-fixed-dim: #95d3ba;
+  --color-on-primary: #ffffff;
+  --color-on-primary-fixed: #002117;
+  --color-on-primary-fixed-variant: #0b513d;
+  --color-inverse-primary: #95d3ba;
 
-  --color-card: #0b1120;
-  --color-card-foreground: #ffffff;
+  --color-secondary: #9b4500;
+  --color-secondary-container: #fd8a42;
+  --color-secondary-fixed: #ffdbca;
+  --color-secondary-fixed-dim: #ffb68e;
+  --color-on-secondary: #ffffff;
+  --color-on-secondary-container: #682c00;
+  --color-on-secondary-fixed: #331200;
+  --color-on-secondary-fixed-variant: #763300;
 
-  --color-popover: #0b1120;
-  --color-popover-foreground: #ffffff;
+  --color-tertiary: #4f1f19;
+  --color-tertiary-container: #6b342d;
+  --color-tertiary-fixed: #ffdad5;
+  --color-tertiary-fixed-dim: #ffb4a9;
+  --color-on-tertiary: #ffffff;
+  --color-on-tertiary-container: #ea9e93;
+  --color-on-tertiary-fixed: #380d08;
+  --color-on-tertiary-fixed-variant: #6e372f;
 
-  --color-primary: #0055ff;
-  --color-primary-foreground: #ffffff;
+  --color-surface: #fdf9e9;
+  --color-surface-dim: #dedacb;
+  --color-surface-bright: #fdf9e9;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #f8f4e4;
+  --color-surface-container: #f2eede;
+  --color-surface-container-high: #ece8d9;
+  --color-surface-container-highest: #e6e3d3;
+  --color-surface-variant: #e6e3d3;
+  --color-on-surface: #1c1c13;
+  --color-on-surface-variant: #404944;
+  --color-inverse-surface: #323126;
+  --color-inverse-on-surface: #f5f1e1;
 
-  --color-secondary: #ff2d55;
-  --color-secondary-foreground: #ffffff;
+  --color-background: #fdf9e9;
+  --color-on-background: #1c1c13;
 
-  --color-muted: #1e293b;
-  --color-muted-foreground: #94a3b8;
+  --color-outline: #707974;
+  --color-outline-variant: #bfc9c3;
 
-  --color-accent: #ffffff;
-  --color-accent-foreground: #020408;
+  --color-error: #ba1a1a;
+  --color-error-container: #ffdad6;
+  --color-on-error: #ffffff;
+  --color-on-error-container: #93000a;
 
-  --color-destructive: #ef4444;
-  --color-destructive-foreground: #ffffff;
+  /* Brand specifics */
+  --color-emerald-deep: #022C22;
+  --color-gold-muted: #D97706;
+  --color-ink-black: #0F172A;
+  --color-cream-surface: #FEFCE8;
+  --color-surface-tint: #2b6954;
 
-  --color-border: rgba(255, 255, 255, 0.1);
-  --color-input: rgba(255, 255, 255, 0.1);
-  --color-ring: #0055ff;
-
-  --radius-lg: 0.75rem;
-  --radius-md: calc(0.75rem - 2px);
-  --radius-sm: calc(0.75rem - 4px);
-
-  --animate-accordion-down: accordion-down 0.2s ease-out;
-  --animate-accordion-up: accordion-up 0.2s ease-out;
-  --animate-marquee: marquee 25s linear infinite;
-  --animate-glow: glow 2s ease-in-out infinite alternate;
-
-  @keyframes accordion-down {
-    from { height: 0; }
-    to { height: var(--radix-accordion-content-height); }
-  }
-  @keyframes accordion-up {
-    from { height: var(--radix-accordion-content-height); }
-    to { height: 0; }
-  }
-  @keyframes marquee {
-    0% { transform: translateX(0%); }
-    100% { transform: translateX(-50%); }
-  }
-  @keyframes glow {
-    from { box-shadow: 0 0 5px rgba(0, 85, 255, 0.2), 0 0 10px rgba(0, 85, 255, 0.1); }
-    to { box-shadow: 0 0 20px rgba(0, 85, 255, 0.6), 0 0 30px rgba(0, 85, 255, 0.3); }
-  }
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+  --radius-full: 9999px;
 }
 
 @layer base {
   * {
-    border-color: var(--color-border);
-    outline-color: var(--color-ring);
+    border-color: var(--color-outline-variant);
+    outline-color: var(--color-primary);
+    box-sizing: border-box;
+  }
+  html {
+    scroll-behavior: smooth;
   }
   body {
-    background-color: var(--color-background);
-    color: var(--color-foreground);
+    background-color: var(--color-surface);
+    color: var(--color-on-surface);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
   }
-
-  /* Improved focus visibility */
+  ::selection {
+    background-color: var(--color-inverse-primary);
+    color: var(--color-primary);
+  }
   :focus-visible {
-    outline: 2px solid var(--color-ring);
+    outline: 2px solid var(--color-primary);
     outline-offset: 2px;
-  }
-
-  /* Responsive image fallback behavior */
-  img:not([src]), img[src=""] {
-    position: relative;
-    overflow: hidden;
-    background-color: var(--color-muted);
-  }
-  img:not([src])::after, img[src=""]::after {
-    content: "Image unavailable";
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    font-size: 0.75rem;
-    color: var(--color-muted-foreground);
-    background-color: var(--color-muted);
   }
 }
 
 @layer components {
-  .glass {
-    background: rgba(255, 255, 255, 0.05);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+  .font-display {
+    font-family: var(--font-display);
   }
 
-  .glass-dark {
-    background: rgba(11, 17, 32, 0.7);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+  .ambient-shadow {
+    box-shadow: 0 10px 40px -10px rgba(0, 53, 39, 0.08);
+    transition: box-shadow 0.3s ease, transform 0.3s ease;
+  }
+  .ambient-shadow:hover {
+    box-shadow: 0 20px 50px -12px rgba(0, 53, 39, 0.12);
   }
 
-  .glow-primary {
-    box-shadow: 0 0 15px rgba(0, 85, 255, 0.4);
-    transition: box-shadow 0.3s ease;
-  }
-  .glow-primary:hover {
-    box-shadow: 0 0 25px rgba(0, 85, 255, 0.7);
+  .tonal-layer {
+    background-color: rgba(242, 238, 222, 0.7);
   }
 
-  .glow-secondary {
-    box-shadow: 0 0 15px rgba(255, 45, 85, 0.4);
-    transition: box-shadow 0.3s ease;
-  }
-  .glow-secondary:hover {
-    box-shadow: 0 0 25px rgba(255, 45, 85, 0.7);
-  }
-
-  .text-gradient-ama {
-    background: linear-gradient(90deg, #ffffff 0%, #0055ff 50%, #ff2d55 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-  }
-
-  .bg-gradient-mesh {
-    background: radial-gradient(at 0% 0%, rgba(0, 85, 255, 0.15) 0%, transparent 50%),
-                radial-gradient(at 100% 100%, rgba(255, 45, 85, 0.1) 0%, transparent 50%);
+  .material-symbols-outlined {
+    font-family: 'Material Symbols Outlined';
+    font-weight: normal;
+    font-style: normal;
+    font-size: 24px;
+    line-height: 1;
+    letter-spacing: normal;
+    text-transform: none;
+    display: inline-block;
+    white-space: nowrap;
+    word-wrap: normal;
+    direction: ltr;
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    -webkit-font-smoothing: antialiased;
   }
 
-  .ama-logo-a-white { color: #ffffff; }
-  .ama-logo-m-blue { color: #0055ff; }
-  .ama-logo-a-red { color: #ff2d55; }
+  .label-caps {
+    font-family: var(--font-sans);
+    font-size: 12px;
+    line-height: 16px;
+    letter-spacing: 0.1em;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
 }
 
 @layer utilities {
-  .scrollbar-hide::-webkit-scrollbar {
-    display: none;
-  }
-  .scrollbar-hide {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-  }
-  
-  .mask-fade-out {
-    mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
-  }
+  .scrollbar-hide::-webkit-scrollbar { display: none; }
+  .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
 }

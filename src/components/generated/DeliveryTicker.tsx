@@ -1,28 +1,41 @@
 import React from 'react';
-export const DeliveryTicker: React.FC = () => {
-  return <div className="w-full bg-[#0055FF] overflow-hidden whitespace-nowrap py-3 relative border-y border-white/10">
-      <div className="flex animate-marquee-infinite items-center gap-8 md:gap-12">
-        {[...Array(10)].map((_, i) => <div key={i} className="flex items-center gap-3">
-            <span className="text-white font-black italic tracking-widest text-sm md:text-base uppercase flex items-center gap-2">
-              <span className="text-2xl">🏎️</span>
-              domicilios rápidos en menos de 24 horas en nuestra lambo
-            </span>
-            <span className="w-2 h-2 rounded-full bg-white opacity-50" />
-          </div>)}
-      </div>
 
-      <style dangerouslySetInnerHTML={{
-      __html: `
-        @keyframes marquee {
-          0% { transform: translateX(0); }
+interface DeliveryTickerProps {
+  bannerText?: string;
+}
+
+export const DeliveryTicker: React.FC<DeliveryTickerProps> = ({ bannerText }) => {
+  const message = bannerText || 'domicilios rápidos en menos de 24 horas en nuestra lambo';
+
+  return (
+    <div
+      className="w-full overflow-hidden whitespace-nowrap py-3 border-y"
+      style={{ backgroundColor: 'var(--color-primary)', borderColor: 'var(--color-primary-container)' }}
+    >
+      <div className="flex items-center animate-delivery-ticker">
+        {Array.from({ length: 12 }).map((_, i) => (
+          <div key={i} className="flex items-center gap-4 shrink-0 px-6">
+            <span className="text-xl">🏎️</span>
+            <span className="label-caps italic"
+              style={{ color: 'var(--color-inverse-primary)', letterSpacing: '0.12em' }}>
+              {message}
+            </span>
+            <span className="w-1.5 h-1.5 rounded-full shrink-0"
+              style={{ backgroundColor: 'var(--color-inverse-primary)', opacity: 0.4 }} />
+          </div>
+        ))}
+      </div>
+      <style>{`
+        @keyframes delivery-ticker {
+          0%   { transform: translateX(0); }
           100% { transform: translateX(-50%); }
         }
-        .animate-marquee-infinite {
+        .animate-delivery-ticker {
           display: flex;
-          width: fit-content;
-          animation: marquee 20s linear infinite;
+          width: max-content;
+          animation: delivery-ticker 28s linear infinite;
         }
-      `
-    }} />
-    </div>;
+      `}</style>
+    </div>
+  );
 };

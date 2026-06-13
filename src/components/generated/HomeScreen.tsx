@@ -1,157 +1,333 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Navbar } from './Navbar';
 import { DeliveryTicker } from './DeliveryTicker';
-import { ProductCard } from './ProductCard';
 import { Footer } from './Footer';
-import { ShoppingBag, Package, Zap, ArrowRight } from 'lucide-react';
 import { useCart } from '../../hooks/useCart';
-type Page = 'home' | 'catalog' | 'detail' | 'combo' | 'cart';
+import { supabase } from '../../lib/supabase';
+import type { Page, FilterCategory } from '../../App';
+
 interface HomeScreenProps {
-  navigate?: (page: Page, filter?: any) => void;
+  navigate?: (page: Page, filter?: FilterCategory) => void;
 }
-const FEATURED_PRODUCTS = [{
-  id: 'combo-familiar-home', // Unique ID matching the combo family
-  title: 'Combo Familiar',
-  price: 2500,
-  image: 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&q=80&w=400',
-  category: 'Combo'
-}, {
-  id: 'combo-desayuno',
-  title: 'Combo Desayuno',
-  price: 800,
-  image: 'https://images.unsplash.com/photo-1533089860892-a7c6f0a88666?auto=format&fit=crop&q=80&w=400',
-  category: 'Combo'
-}, {
-  id: 'combo-carnico',
-  title: 'Combo Cárnico',
-  price: 3200,
-  image: 'https://images.unsplash.com/photo-1603048297172-c92544798d5e?auto=format&fit=crop&q=80&w=400',
-  category: 'Combo'
-}, {
-  id: 'combo-vegetales',
-  title: 'Combo Vegetales',
-  price: 1200,
-  image: 'https://images.unsplash.com/photo-1597362925123-77861d3fbac7?auto=format&fit=crop&q=80&w=400',
-  category: 'Combo'
-}];
-interface CategoryCardData {
-  title: string;
+
+interface FeaturedProduct {
+  id: string;
+  name: string;
   description: string;
-  iconType: 'bag' | 'package' | 'zap';
-  gradient: string;
-  page: Page;
+  price: number;
+  image_url: string;
+  category: string;
+  badge?: string | null;
 }
-const CATEGORY_CARDS: CategoryCardData[] = [{
-  title: 'Mercado',
-  description: 'Víveres, aceite, arroz y más',
-  iconType: 'bag',
-  gradient: 'from-[#0055FF]/10 to-transparent',
-  page: 'catalog'
-}, {
-  title: 'Combos',
-  description: 'Combos listos y arma el tuyo',
-  iconType: 'package',
-  gradient: 'from-[#FF2D55]/10 to-transparent',
-  page: 'combo'
-}, {
-  title: 'Electrodomésticos',
-  description: 'Splits, neveras, freidoras',
-  iconType: 'zap',
-  gradient: 'from-white/10 to-transparent',
-  page: 'catalog'
-}];
-export const HomeScreen: React.FC<HomeScreenProps> = ({
-  navigate
-}) => {
+
+const SkeletonCard = () => (
+  <div className="rounded-xl overflow-hidden animate-pulse"
+    style={{ backgroundColor: 'var(--color-surface-container-low)', border: '1px solid var(--color-outline-variant)' }}>
+    <div className="aspect-square w-full" style={{ backgroundColor: 'var(--color-surface-container)' }} />
+    <div className="p-6 flex flex-col gap-3">
+      <div className="h-5 rounded-lg w-3/4" style={{ backgroundColor: 'var(--color-surface-container)' }} />
+      <div className="h-4 rounded-lg w-full" style={{ backgroundColor: 'var(--color-surface-container)' }} />
+      <div className="h-6 rounded-lg w-1/2 mt-2" style={{ backgroundColor: 'var(--color-surface-container)' }} />
+    </div>
+  </div>
+);
+
+export const HomeScreen: React.FC<HomeScreenProps> = ({ navigate }) => {
   const { addToCart } = useCart();
-  return <div className="min-h-screen bg-[#020408] text-white overflow-x-hidden font-sans">
-      <Navbar navigate={navigate} />
+  const [featured, setFeatured] = useState<FeaturedProduct[]>([]);
+  const [loadingFeatured, setLoadingFeatured] = useState(true);
+  const [bannerText, setBannerText] = useState('');
 
-      <main className="pt-20">
-        <DeliveryTicker />
+  useEffect(() => {
+    // Load featured products from Supabase (combos marked as popular/active, limit 3)
+    const loadFeatured = async () => {
+      const { data } = await supabase
+        .from('products')
+        .select('id, name, description, price, image_url, category, badge')
+        .eq('active', true)
+        .eq('category', 'Combos')
+        .order('created_at', { ascending: false })
+        .limit(3);
+      setFeatured(data || []);
+      setLoadingFeatured(false);
+    };
 
-        {/* Hero Section */}
-        <section className="relative w-full py-24 md:py-32 flex flex-col items-center justify-center overflow-hidden">
-          <div className="absolute top-1/2 left-0 w-96 h-96 bg-[#0055FF]/30 rounded-full blur-[120px] -translate-y-1/2 -translate-x-1/2 pointer-events-none" />
-          <div className="absolute top-1/2 right-0 w-96 h-96 bg-[#FF2D55]/20 rounded-full blur-[120px] -translate-y-1/2 translate-x-1/2 pointer-events-none" />
+    // Load settings (business name, banner text)
+    const loadSettings = async () => {
+      const { data } = await supabase.from('settings').select('key, value');
+      if (data) {
+        const s: Record<string, string> = {};
+        data.forEach(r => { s[r.key] = r.value; });
+        if (s.banner_text) setBannerText(s.banner_text);
+      }
+    };
 
-          <div className="relative z-10 max-w-4xl mx-auto px-6 text-center">
-            <h1 className="text-5xl md:text-7xl font-black tracking-tight mb-6 leading-tight">
-              AMA: Lo mejor de <br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-white via-white to-gray-400">
-                La Habana a tu puerta
-              </span>
-            </h1>
-            <p className="text-xl md:text-2xl text-gray-400 mb-10 max-w-2xl mx-auto font-medium">
-              Mercado, combos y electrodomésticos. Entrega en 24 horas.
-            </p>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-              <button onClick={() => navigate?.('catalog', 'Combos')} className="w-full sm:w-auto px-8 py-4 bg-[#0055FF] text-white rounded-xl font-bold text-lg hover:bg-[#0044CC] transition-colors shadow-[0_0_20px_rgba(0,85,255,0.4)] hover:shadow-[0_0_30px_rgba(0,85,255,0.6)] cursor-pointer">
-                Ver Combos
-              </button>
-              <button onClick={() => navigate?.('catalog', 'Todos')} className="w-full sm:w-auto px-8 py-4 bg-transparent text-white border-2 border-white/20 rounded-xl font-bold text-lg hover:bg-white/5 hover:border-white/40 transition-colors cursor-pointer">
-                Ver Catálogo
-              </button>
+    loadFeatured();
+    loadSettings();
+  }, []);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      entries => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('opacity-100', 'translate-y-0');
+            entry.target.classList.remove('opacity-0', 'translate-y-8');
+          }
+        });
+      },
+      { threshold: 0.1 }
+    );
+    document.querySelectorAll('.reveal-section').forEach(el => {
+      el.classList.add('transition-all', 'duration-700', 'opacity-0', 'translate-y-8');
+      observer.observe(el);
+    });
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div className="min-h-screen overflow-x-hidden"
+      style={{ backgroundColor: 'var(--color-surface)', color: 'var(--color-on-surface)' }}>
+      <Navbar navigate={navigate} activePage="home" />
+
+      <main>
+        <DeliveryTicker bannerText={bannerText} />
+
+        {/* ── Hero ── */}
+        <section className="relative flex items-center overflow-hidden" style={{ minHeight: '100vh' }}>
+          <div className="absolute inset-0 z-0">
+            <img
+              src="https://images.unsplash.com/photo-1488459716781-31db52582fe9?auto=format&fit=crop&q=80&w=1600"
+              alt="Mercado artesanal de vegetales frescos"
+              className="w-full h-full object-cover"
+            />
+            <div className="absolute inset-0"
+              style={{ background: 'linear-gradient(to right, rgba(2,44,34,0.55) 0%, rgba(2,44,34,0.15) 60%, transparent 100%)' }} />
+          </div>
+          <div className="relative z-10 w-full px-5 md:px-16 max-w-[1280px] mx-auto text-white pt-24">
+            <div className="max-w-2xl flex flex-col gap-6">
+              <h1 className="font-display font-bold leading-tight"
+                style={{ fontSize: 'clamp(2.25rem,5vw,3rem)', letterSpacing: '-0.01em' }}>
+                AMA: Lo mejor del campo a tu hogar
+              </h1>
+              <p className="text-lg leading-relaxed opacity-90 max-w-lg">
+                Cosechamos calidad y tecnología premium para elevar tu experiencia culinaria diaria.
+              </p>
+              <div className="pt-2 flex flex-wrap gap-4">
+                <button onClick={() => navigate?.('catalog', 'Todos')}
+                  className="label-caps px-8 py-4 rounded-xl transition-all active:scale-95 hover:opacity-90"
+                  style={{ backgroundColor: 'var(--color-primary)', color: 'var(--color-cream-surface)' }}>
+                  Explorar Mercado
+                </button>
+                <button onClick={() => navigate?.('catalog', 'Electrodomésticos')}
+                  className="label-caps px-8 py-4 rounded-xl transition-all active:scale-95"
+                  style={{ border: '1px solid var(--color-gold-muted)', color: 'var(--color-gold-muted)', backgroundColor: 'transparent' }}
+                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.backgroundColor = 'rgba(217,119,6,0.1)'}
+                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent'}>
+                  Ver Electrodomésticos
+                </button>
+              </div>
             </div>
           </div>
         </section>
 
-        {/* Categories Grid */}
-        <section className="max-w-7xl mx-auto px-6 py-16">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {CATEGORY_CARDS.map(card => <div key={card.title} className="group relative glass rounded-3xl p-8 overflow-hidden transition-transform duration-300 hover:-translate-y-2 cursor-pointer" onClick={() => {
-              if (card.title === 'Mercado') {
-                navigate?.('catalog', 'Mercado');
-              } else if (card.title === 'Electrodomésticos') {
-                navigate?.('catalog', 'Electrodomésticos');
-              } else {
-                navigate?.(card.page);
-              }
-            }}>
-                <div className={`absolute inset-0 bg-gradient-to-br ${card.gradient} opacity-50`} />
-                <div className="relative z-10">
-                  <div className="w-16 h-16 rounded-2xl bg-white/5 flex items-center justify-center mb-6 border border-white/10 group-hover:border-white/20 transition-colors">
-                    {card.iconType === 'bag' && <ShoppingBag size={32} className="text-[#0055FF]" />}
-                    {card.iconType === 'package' && <Package size={32} className="text-[#FF2D55]" />}
-                    {card.iconType === 'zap' && <Zap size={32} className="text-white" />}
-                  </div>
-                  <h3 className="text-2xl font-bold mb-2">{card.title}</h3>
-                  <p className="text-gray-400 font-medium mb-8">{card.description}</p>
-                  <div className="flex items-center gap-2 text-white/70 group-hover:text-white font-bold transition-colors">
-                    <span>Explorar</span>
-                    <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
-                  </div>
-                </div>
-                <div className="absolute -inset-[1px] rounded-3xl bg-gradient-to-r from-transparent via-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
-              </div>)}
+        {/* ── Category Cards ── */}
+        <section className="py-12 md:py-16 px-5 md:px-16 max-w-[1280px] mx-auto reveal-section">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="group relative overflow-hidden rounded-xl cursor-pointer ambient-shadow"
+              style={{ aspectRatio: '16/9' }}
+              onClick={() => navigate?.('catalog', 'Mercado')}>
+              <img src="https://images.unsplash.com/photo-1488459716781-31db52582fe9?auto=format&fit=crop&q=80&w=900"
+                alt="Mercado Premium"
+                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+              <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors" />
+              <div className="absolute bottom-0 left-0 p-8 w-full text-white">
+                <span className="label-caps inline-block px-3 py-1 rounded mb-4"
+                  style={{ backgroundColor: 'rgba(2,44,34,0.6)', backdropFilter: 'blur(4px)' }}>Selección</span>
+                <h2 className="font-display text-2xl font-semibold mb-2">Mercado Premium</h2>
+                <p className="text-sm opacity-90 mb-4">Ingredientes orgánicos directos de pequeños productores.</p>
+                <span className="label-caps border-b border-white pb-1 hover:text-yellow-400 hover:border-yellow-400 transition-colors cursor-pointer">
+                  DESCUBRIR MÁS
+                </span>
+              </div>
+            </div>
+
+            <div className="group relative overflow-hidden rounded-xl cursor-pointer ambient-shadow"
+              style={{ aspectRatio: '16/9' }}
+              onClick={() => navigate?.('catalog', 'Electrodomésticos')}>
+              <img src="https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?auto=format&fit=crop&q=80&w=900"
+                alt="Electrodomésticos Modernos"
+                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+              <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors" />
+              <div className="absolute bottom-0 left-0 p-8 w-full text-white">
+                <span className="label-caps inline-block px-3 py-1 rounded mb-4"
+                  style={{ backgroundColor: 'rgba(2,44,34,0.6)', backdropFilter: 'blur(4px)' }}>Exclusivo</span>
+                <h2 className="font-display text-2xl font-semibold mb-2">Electrodomésticos Modernos</h2>
+                <p className="text-sm opacity-90 mb-4">Eficiencia y diseño para la cocina contemporánea.</p>
+                <span className="label-caps border-b border-white pb-1 hover:text-yellow-400 hover:border-yellow-400 transition-colors cursor-pointer">
+                  CATÁLOGO
+                </span>
+              </div>
+            </div>
           </div>
         </section>
 
-        {/* Featured Combos */}
-        <section className="max-w-7xl mx-auto px-6 py-16">
-          <div className="flex items-center justify-between mb-10">
-            <h2 className="text-3xl md:text-4xl font-bold tracking-tight">Combos más vendidos</h2>
-            <button onClick={() => navigate?.('catalog', 'Combos')} className="hidden sm:flex items-center gap-2 text-[#0055FF] font-bold hover:text-[#0044CC] transition-colors cursor-pointer">
-              <span>Ver todos</span>
-              <ArrowRight size={20} />
+        {/* ── Featured Products (from Supabase) ── */}
+        <section className="py-12 md:py-16 px-5 md:px-16 max-w-[1280px] mx-auto reveal-section">
+          <div className="flex justify-between items-end mb-8">
+            <div>
+              <span className="label-caps block mb-1" style={{ color: 'var(--color-gold-muted)' }}>ESTA SEMANA</span>
+              <h2 className="font-display text-3xl font-semibold" style={{ color: 'var(--color-primary)' }}>
+                Combos de Temporada
+              </h2>
+            </div>
+            <button onClick={() => navigate?.('catalog', 'Combos')}
+              className="label-caps transition-colors duration-300 hidden sm:block"
+              style={{ color: 'var(--color-primary-container)' }}
+              onMouseEnter={e => (e.currentTarget.style.color = 'var(--color-secondary)')}
+              onMouseLeave={e => (e.currentTarget.style.color = 'var(--color-primary-container)')}>
+              VER TODOS
             </button>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {FEATURED_PRODUCTS.map(product => <ProductCard key={product.id} id={product.id} title={product.title} price={product.price} image={product.image} category={product.category} onAdd={() => {
-              addToCart({
-                id: product.id,
-                title: product.title,
-                price: product.price,
-                image: product.image,
-                category: product.category
-              });
-              navigate?.('cart');
-            }} />)}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {loadingFeatured
+              ? Array.from({ length: 3 }).map((_, i) => <SkeletonCard key={i} />)
+              : featured.length === 0
+                ? (
+                  <div className="col-span-full py-16 text-center">
+                    <p className="text-sm" style={{ color: 'var(--color-on-surface-variant)' }}>
+                      Próximamente combos de temporada. ¡Agrega productos desde el panel admin!
+                    </p>
+                  </div>
+                )
+                : featured.map(product => (
+                  <div key={product.id}
+                    className="group flex flex-col overflow-hidden rounded-xl ambient-shadow transition-transform duration-300"
+                    style={{ backgroundColor: 'var(--color-surface-container-low)' }}>
+                    <div className="relative overflow-hidden aspect-square">
+                      <img
+                        src={product.image_url || 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=600'}
+                        alt={product.name}
+                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                        onError={e => { (e.currentTarget as HTMLImageElement).src = 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=600'; }}
+                      />
+                      <button
+                        onClick={() => {
+                          addToCart({ id: product.id, title: product.name, price: product.price, image: product.image_url, category: product.category });
+                          navigate?.('cart');
+                        }}
+                        className="absolute bottom-4 right-4 p-3 rounded-full shadow-lg opacity-0 translate-y-4 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 active:scale-90"
+                        style={{ backgroundColor: 'var(--color-primary)', color: 'white' }}
+                        aria-label={`Añadir ${product.name} al carrito`}>
+                        <span className="material-symbols-outlined text-[20px]">add_shopping_cart</span>
+                      </button>
+                    </div>
+                    <div className="p-6 flex flex-col gap-2 flex-1">
+                      <h3 className="font-display text-xl font-semibold" style={{ color: 'var(--color-primary)' }}>
+                        {product.name}
+                      </h3>
+                      <p className="text-sm" style={{ color: 'var(--color-on-surface-variant)' }}>
+                        {product.description}
+                      </p>
+                      <div className="pt-4 flex justify-between items-center mt-auto">
+                        <span className="text-xl font-medium" style={{ color: 'var(--color-secondary)', fontFamily: 'Inter' }}>
+                          CUP ${Number(product.price).toLocaleString('es-CU')}
+                        </span>
+                        {product.badge && (
+                          <span className="label-caps" style={{ color: 'var(--color-emerald-deep)' }}>
+                            {product.badge}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))
+            }
+          </div>
+        </section>
+
+        {/* ── Arma tu Combo CTA ── */}
+        <section className="py-12 md:py-20 px-5 md:px-16 reveal-section"
+          style={{ backgroundColor: 'var(--color-primary)' }}>
+          <div className="max-w-[1280px] mx-auto">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-10 items-center">
+              <div className="flex flex-col gap-5">
+                <span className="label-caps" style={{ color: 'var(--color-inverse-primary)', letterSpacing: '0.2em' }}>
+                  PERSONALIZA
+                </span>
+                <h2 className="font-display font-bold leading-tight text-white"
+                  style={{ fontSize: 'clamp(1.75rem,3.5vw,2.5rem)', letterSpacing: '-0.01em' }}>
+                  Arma tu Combo Perfecto 🍳
+                </h2>
+                <p className="text-base leading-relaxed" style={{ color: 'rgba(255,255,255,0.75)' }}>
+                  Elige proteínas, viandas, granos y bebidas a tu medida. Nosotros lo preparamos y entregamos en menos de 24 horas.
+                </p>
+                <div className="flex flex-wrap gap-3 pt-2">
+                  <button onClick={() => navigate?.('combo')}
+                    className="label-caps px-7 py-3.5 rounded-xl transition-all active:scale-95 hover:opacity-90"
+                    style={{ backgroundColor: 'white', color: 'var(--color-primary)' }}>
+                    Crear mi Combo
+                  </button>
+                  <button onClick={() => navigate?.('catalog', 'Combos')}
+                    className="label-caps px-7 py-3.5 rounded-xl transition-all active:scale-95"
+                    style={{ border: '1px solid rgba(255,255,255,0.4)', color: 'white', backgroundColor: 'transparent' }}
+                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.backgroundColor = 'rgba(255,255,255,0.1)'}
+                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent'}>
+                    Ver Combos Listos
+                  </button>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  { emoji: '🥩', label: 'Proteínas', sub: 'Pollo, Cerdo, Pescado' },
+                  { emoji: '🌿', label: 'Viandas', sub: 'Boniato, Plátanos, Tomate' },
+                  { emoji: '🌾', label: 'Granos', sub: 'Arroz, Frijoles, Pasta' },
+                  { emoji: '🥤', label: 'Bebidas', sub: 'Jugo, Refresco, Agua' },
+                ].map(item => (
+                  <div key={item.label} className="rounded-xl p-4 flex flex-col gap-1"
+                    style={{ backgroundColor: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.15)' }}>
+                    <span className="text-2xl">{item.emoji}</span>
+                    <p className="font-semibold text-sm text-white">{item.label}</p>
+                    <p className="text-xs" style={{ color: 'rgba(255,255,255,0.6)' }}>{item.sub}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ── Brand Story ── */}
+        <section className="py-24 px-5 md:px-16 reveal-section"
+          style={{ backgroundColor: 'var(--color-surface-container-lowest)' }}>
+          <div className="max-w-4xl mx-auto text-center flex flex-col items-center gap-6">
+            <span className="label-caps" style={{ color: 'var(--color-emerald-deep)', letterSpacing: '0.2em' }}>
+              NUESTRO LEGADO
+            </span>
+            <h2 className="font-display font-bold leading-tight"
+              style={{ color: 'var(--color-primary)', fontSize: 'clamp(1.75rem,4vw,3rem)', letterSpacing: '-0.02em' }}>
+              Cuidamos el origen,<br />elevamos tu mesa.
+            </h2>
+            <div className="h-px w-24" style={{ backgroundColor: 'var(--color-gold-muted)' }} />
+            <p className="text-lg leading-relaxed max-w-2xl" style={{ color: 'var(--color-on-surface-variant)' }}>
+              AMA nació de la creencia de que la modernidad no debe comprometer la calidad de lo
+              esencial. Seleccionamos meticulosamente cada producto de granjas que respetan los
+              ciclos naturales y curamos tecnología para el hogar que honra esos ingredientes.
+              Uniendo tradición y eficiencia, llevamos la esencia del campo a la sofisticación de tu hogar.
+            </p>
+            <div className="pt-4">
+              <button className="label-caps border-b-2 pb-2 transition-all duration-300"
+                style={{ color: 'var(--color-primary)', borderColor: 'var(--color-primary)' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--color-secondary)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--color-secondary)'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--color-primary)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--color-primary)'; }}>
+                CONOCE NUESTRA HISTORIA
+              </button>
+            </div>
           </div>
         </section>
       </main>
 
-      <Footer />
-    </div>;
+      <Footer onAdminClick={() => navigate?.('admin-login')} />
+    </div>
+  );
 };
