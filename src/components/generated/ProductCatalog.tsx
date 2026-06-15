@@ -184,7 +184,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                   </p>
                   <div className="pt-4 flex justify-between items-center mt-auto">
                     <span className="text-xl font-medium" style={{ color: 'var(--color-secondary)', fontFamily: 'Inter' }}>
-                      CUP ${Number(product.price).toLocaleString('es-CU')}
+                      ${Number(product.price).toLocaleString('en-US', {minimumFractionDigits:2,maximumFractionDigits:2})}
                     </span>
                     {product.badge && (
                       <span className="label-caps" style={{ color: 'var(--color-emerald-deep)' }}>

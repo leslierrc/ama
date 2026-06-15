@@ -80,7 +80,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             className="text-xl font-medium"
             style={{ color: 'var(--color-secondary)', fontFamily: 'Inter' }}
           >
-            CUP ${price.toLocaleString('es-CU')}
+            ${price.toLocaleString('en-US', {minimumFractionDigits:2,maximumFractionDigits:2})}
           </span>
           {badge && (
             <span className="label-caps" style={{ color: 'var(--color-emerald-deep)' }}>

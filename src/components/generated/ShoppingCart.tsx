@@ -13,7 +13,8 @@ interface ShoppingCartProps {
 }
 
 const WA_NUMBER = import.meta.env.VITE_WHATSAPP_NUMBER || '5355542936';
-const CUP_TO_USD = 200; // 1 USD ≈ 200 CUP
+
+// Precio ya está en USD — no se necesita conversión
 
 // ── PayPal Checkout Button — handles SDK loading state ───────────────────────
 interface PayPalCheckoutButtonProps {
@@ -140,7 +141,7 @@ export const ShoppingCart: React.FC<ShoppingCartProps> = ({ navigate }) => {
   const initAttemptRef = useRef(0);
 
   const total = cartTotal;
-  const totalUSD = (total / CUP_TO_USD).toFixed(2);
+  const totalUSD = total.toFixed(2);
 
   // ── Load Leaflet ──────────────────────────────────────────
   useEffect(() => {
@@ -302,7 +303,7 @@ export const ShoppingCart: React.FC<ShoppingCartProps> = ({ navigate }) => {
   const sendWhatsApp = (method: PaymentMethod, orderNumber: string, paypalId?: string) => {
     const dateStr = new Date().toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short' });
     const itemsText = cart.map(item => {
-      let t = `📦 *${item.quantity}x ${item.title}* — CUP ${(item.price * item.quantity).toLocaleString('es-CU')}`;
+      let t = `📦 *${item.quantity}x ${item.title}* — ${(item.price * item.quantity).toLocaleString('en-US', {minimumFractionDigits:2,maximumFractionDigits:2})}`;
       if (item.isCombo && item.comboItems?.length)
         t += '\n' + item.comboItems.map(ci => `   🔹 ${ci.quantity}× ${ci.name}`).join('\n');
       return t;
@@ -325,7 +326,7 @@ ${paymentLine}
 🛒 *PRODUCTOS:*
 ${itemsText}
 ──────────────────────
-💰 *TOTAL:* *CUP ${total.toLocaleString('es-CU')}*
+💰 *TOTAL:* *${total.toLocaleString('en-US', {minimumFractionDigits:2,maximumFractionDigits:2})}*
 ──────────────────────
 ✅ ¡Gracias por comprar en AMA! Entrega en 24h 🌿`;
 
@@ -513,7 +514,7 @@ ${itemsText}
                         </div>
                       )}
                       <p className="text-sm font-semibold mt-1" style={{ color: 'var(--color-secondary)' }}>
-                        CUP ${item.price.toLocaleString('es-CU')}
+                        ${item.price.toLocaleString('en-US', {minimumFractionDigits:2,maximumFractionDigits:2})}
                       </p>
                     </div>
                     <div className="flex items-center gap-3 shrink-0">
@@ -553,7 +554,7 @@ ${itemsText}
                 <h3 className="font-display font-semibold text-lg" style={{ color: 'var(--color-primary)' }}>Resumen del pedido</h3>
                 <div className="flex justify-between text-sm">
                   <span style={{ color: 'var(--color-on-surface-variant)' }}>Subtotal</span>
-                  <span style={{ color: 'var(--color-on-surface)', fontWeight: 600 }}>CUP ${total.toLocaleString('es-CU')}</span>
+                  <span style={{ color: 'var(--color-on-surface)', fontWeight: 600 }}>${total.toLocaleString('en-US', {minimumFractionDigits:2,maximumFractionDigits:2})}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span style={{ color: 'var(--color-on-surface-variant)' }}>Envío</span>
@@ -569,7 +570,7 @@ ${itemsText}
                 <div className="flex justify-between items-center">
                   <span className="font-semibold" style={{ color: 'var(--color-on-surface)' }}>Total</span>
                   <span className="text-2xl font-semibold" style={{ color: 'var(--color-secondary)', fontFamily: 'Inter' }}>
-                    CUP ${total.toLocaleString('es-CU')}
+                    ${total.toLocaleString('en-US', {minimumFractionDigits:2,maximumFractionDigits:2})}
                   </span>
                 </div>
               </div>

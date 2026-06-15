@@ -81,13 +81,7 @@ export const Footer: React.FC<FooterProps> = ({ onAdminClick }) => {
           <span className="text-sm" style={{ color: 'var(--color-on-surface-variant)' }}>
             © 2024 AMA Modern Heritage. Todos los derechos reservados.
           </span>
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-3">
-              <span className="material-symbols-outlined text-[18px]" style={{ color: 'var(--color-on-surface-variant)' }}>language</span>
-              <span className="label-caps" style={{ color: 'var(--color-on-surface-variant)' }}>ESPAÑOL (CU)</span>
-            </div>
-            {/* Discrete admin link */}
-            <button
+           <button
               onClick={onAdminClick}
               className="text-xs transition-colors duration-300"
               style={{ color: 'var(--color-outline-variant)' }}
@@ -96,6 +90,13 @@ export const Footer: React.FC<FooterProps> = ({ onAdminClick }) => {
             >
               ¿Eres administrador?
             </button>
+          <div className="flex items-center gap-6">
+            <div className="flex items-center gap-3">
+              <span className="material-symbols-outlined text-[18px]" style={{ color: 'var(--color-on-surface-variant)' }}>language</span>
+              <span className="label-caps" style={{ color: 'var(--color-on-surface-variant)' }}>ESPAÑOL (CU)</span>
+            </div>
+            {/* Discrete admin link */}
+           
           </div>
         </div>
       </div>

@@ -231,7 +231,7 @@ export const ComboBuilderScreen: React.FC<ComboBuilderScreenProps> = ({ navigate
                           <div>
                             <p className="font-medium" style={{ color: 'var(--color-on-surface)' }}>{item.name}</p>
                             <p className="text-sm" style={{ color: 'var(--color-on-surface-variant)' }}>
-                              CUP ${Number(item.price).toLocaleString('es-CU')}
+                              ${Number(item.price).toLocaleString('en-US', {minimumFractionDigits:2,maximumFractionDigits:2})}
                             </p>
                           </div>
                           <div className="flex items-center gap-3">
@@ -310,7 +310,7 @@ export const ComboBuilderScreen: React.FC<ComboBuilderScreenProps> = ({ navigate
                             {item.name}
                           </span>
                           <span style={{ color: 'var(--color-on-surface-variant)' }}>
-                            ${(item.price * (quantities[item.id] ?? 0)).toLocaleString('es-CU')}
+                            ${(item.price * (quantities[item.id] ?? 0)).toLocaleString('en-US', {minimumFractionDigits:2,maximumFractionDigits:2})}
                           </span>
                         </div>
                       ))}
@@ -327,7 +327,7 @@ export const ComboBuilderScreen: React.FC<ComboBuilderScreenProps> = ({ navigate
                   </span>
                   <span className="text-2xl font-semibold"
                     style={{ color: 'var(--color-secondary)', fontFamily: 'Inter' }}>
-                    CUP ${total.toLocaleString('es-CU')}
+                    ${total.toLocaleString('en-US', {minimumFractionDigits:2,maximumFractionDigits:2})}
                   </span>
                 </div>
 

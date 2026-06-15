@@ -162,7 +162,7 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ navigate }
                   </span>
                 </div>
                 <div className="text-3xl font-semibold" style={{ color: 'var(--color-secondary)', fontFamily: 'Inter' }}>
-                  CUP $45,000
+                  $45,000
                 </div>
               </div>
 
@@ -296,7 +296,7 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ navigate }
                     className="text-lg font-medium"
                     style={{ color: 'var(--color-secondary)', fontFamily: 'Inter' }}
                   >
-                    CUP ${product.price.toLocaleString('es-CU')}
+                    ${product.price.toLocaleString('en-US', {minimumFractionDigits:2,maximumFractionDigits:2})}
                   </p>
                 </div>
               </div>
