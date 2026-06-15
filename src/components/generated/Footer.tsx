@@ -1,4 +1,5 @@
 import React from 'react';
+import { AmaLogo } from './AmaLogo';
 
 interface FooterProps {
   onAdminClick?: () => void;

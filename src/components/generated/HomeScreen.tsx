@@ -131,13 +131,13 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigate }) => {
                   style={{ backgroundColor: 'var(--color-primary)', color: 'var(--color-cream-surface)' }}>
                   Explorar Mercado
                 </button>
-                <button onClick={() => navigate?.('catalog', 'Electrodomésticos')}
+                {/* <button onClick={() => navigate?.('catalog', 'Electrodomésticos')}
                   className="label-caps px-8 py-4 rounded-xl transition-all active:scale-95"
                   style={{ border: '1px solid var(--color-gold-muted)', color: 'var(--color-gold-muted)', backgroundColor: 'transparent' }}
                   onMouseEnter={e => (e.currentTarget as HTMLElement).style.backgroundColor = 'rgba(217,119,6,0.1)'}
                   onMouseLeave={e => (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent'}>
                   Ver Electrodomésticos
-                </button>
+                </button> */}
               </div>
             </div>
           </div>
