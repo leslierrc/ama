@@ -3,10 +3,10 @@ import { Navbar } from './Navbar';
 import { Footer } from './Footer';
 import { useCart } from '../../hooks/useCart';
 import { supabase } from '../../lib/supabase';
-import type { Page } from '../../App';
+import type { Page, FilterCategory } from '../../App';
 
 interface ComboBuilderScreenProps {
-  navigate?: (page: Page) => void;
+  navigate?: (page: Page, filter?: FilterCategory) => void;
 }
 
 interface ComboItem {

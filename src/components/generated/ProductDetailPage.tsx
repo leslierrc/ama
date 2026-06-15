@@ -2,10 +2,10 @@ import React from 'react';
 import { Navbar } from './Navbar';
 import { Footer } from './Footer';
 import { useCart } from '../../hooks/useCart';
+import type { Page, FilterCategory } from '../../App';
 
-type Page = 'home' | 'catalog' | 'detail' | 'combo' | 'cart';
 interface ProductDetailPageProps {
-  navigate?: (page: Page) => void;
+  navigate?: (page: Page, filter?: FilterCategory) => void;
 }
 
 const SPECS = [

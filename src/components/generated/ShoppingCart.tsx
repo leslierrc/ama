@@ -4,10 +4,10 @@ import { Navbar } from './Navbar';
 import { Footer } from './Footer';
 import { useCart } from '../../hooks/useCart';
 import { supabase } from '../../lib/supabase';
+import type { Page, FilterCategory } from '../../App';
 
-type Page = 'home' | 'catalog' | 'detail' | 'combo' | 'cart' | 'admin-login' | 'admin';
 type PaymentMethod = 'whatsapp' | 'paypal';
-interface ShoppingCartProps { navigate?: (page: Page) => void; }
+interface ShoppingCartProps { navigate?: (page: Page, filter?: FilterCategory) => void; }
 
 const WA_NUMBER = import.meta.env.VITE_WHATSAPP_NUMBER || '5355542936';
 const fmt = (n: number) =>
