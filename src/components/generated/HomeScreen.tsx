@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Navbar } from './Navbar';
 import { DeliveryTicker } from './DeliveryTicker';
 import { Footer } from './Footer';
+import { AboutSection } from './AboutSection';
 import { useCart } from '../../hooks/useCart';
 import { supabase } from '../../lib/supabase';
 import type { Page, FilterCategory } from '../../App';
@@ -15,6 +16,7 @@ interface FeaturedProduct {
   name: string;
   description: string;
   price: number;
+  original_price?: number | null;
   image_url: string;
   category: string;
   badge?: string | null;
@@ -39,16 +41,26 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigate }) => {
   const [bannerText, setBannerText] = useState('');
 
   useEffect(() => {
-    // Load featured products from Supabase (combos marked as popular/active, limit 3)
+    // Carga combos predefinidos desde la tabla "combos" (los que crea el admin)
     const loadFeatured = async () => {
       const { data } = await supabase
-        .from('products')
-        .select('id, name, description, price, image_url, category, badge')
+        .from('combos')
+        .select('id, name, description, price, original_price, image_url, active')
         .eq('active', true)
-        .eq('category', 'Combos')
         .order('created_at', { ascending: false })
         .limit(3);
-      setFeatured(data || []);
+      // Mapea la estructura de combos a FeaturedProduct
+      setFeatured(
+        (data || []).map(c => ({
+          id: c.id,
+          name: c.name,
+          description: c.description || '',
+          price: c.price,
+          image_url: c.image_url || '',
+          category: 'Combos',
+          badge: c.original_price && c.original_price > c.price ? 'OFERTA' : null,
+        }))
+      );
       setLoadingFeatured(false);
     };
 
@@ -231,9 +243,16 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigate }) => {
                         {product.description}
                       </p>
                       <div className="pt-4 flex justify-between items-center mt-auto">
-                        <span className="text-xl font-medium" style={{ color: 'var(--color-secondary)', fontFamily: 'Inter' }}>
-                          ${Number(product.price).toLocaleString('en-US', {minimumFractionDigits:2,maximumFractionDigits:2})}
-                        </span>
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-xl font-medium" style={{ color: 'var(--color-secondary)', fontFamily: 'Inter' }}>
+                            ${Number(product.price).toLocaleString('en-US', {minimumFractionDigits:2,maximumFractionDigits:2})}
+                          </span>
+                          {product.original_price && product.original_price > product.price && (
+                            <span className="text-sm line-through" style={{ color: 'var(--color-on-surface-variant)' }}>
+                              ${Number(product.original_price).toLocaleString('en-US', {minimumFractionDigits:2,maximumFractionDigits:2})}
+                            </span>
+                          )}
+                        </div>
                         {product.badge && (
                           <span className="label-caps" style={{ color: 'var(--color-emerald-deep)' }}>
                             {product.badge}
@@ -297,34 +316,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigate }) => {
           </div>
         </section>
 
-        {/* ── Brand Story ── */}
-        <section className="py-24 px-5 md:px-16 reveal-section"
-          style={{ backgroundColor: 'var(--color-surface-container-lowest)' }}>
-          <div className="max-w-4xl mx-auto text-center flex flex-col items-center gap-6">
-            <span className="label-caps" style={{ color: 'var(--color-emerald-deep)', letterSpacing: '0.2em' }}>
-              NUESTRO LEGADO
-            </span>
-            <h2 className="font-display font-bold leading-tight"
-              style={{ color: 'var(--color-primary)', fontSize: 'clamp(1.75rem,4vw,3rem)', letterSpacing: '-0.02em' }}>
-              Cuidamos el origen,<br />elevamos tu mesa.
-            </h2>
-            <div className="h-px w-24" style={{ backgroundColor: 'var(--color-gold-muted)' }} />
-            <p className="text-lg leading-relaxed max-w-2xl" style={{ color: 'var(--color-on-surface-variant)' }}>
-              AMA nació de la creencia de que la modernidad no debe comprometer la calidad de lo
-              esencial. Seleccionamos meticulosamente cada producto de granjas que respetan los
-              ciclos naturales y curamos tecnología para el hogar que honra esos ingredientes.
-              Uniendo tradición y eficiencia, llevamos la esencia del campo a la sofisticación de tu hogar.
-            </p>
-            <div className="pt-4">
-              <button className="label-caps border-b-2 pb-2 transition-all duration-300"
-                style={{ color: 'var(--color-primary)', borderColor: 'var(--color-primary)' }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--color-secondary)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--color-secondary)'; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--color-primary)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--color-primary)'; }}>
-                CONOCE NUESTRA HISTORIA
-              </button>
-            </div>
-          </div>
-        </section>
+        {/* ── About / Historia con fotos y video ── */}
+        <AboutSection />
       </main>
 
       <Footer onAdminClick={() => navigate?.('admin-login')} />

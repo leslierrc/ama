@@ -59,19 +59,65 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       setLoading(true);
       setError('');
       try {
-        let query = supabase
-          .from('products')
-          .select('id, name, description, price, image_url, category, badge')
-          .eq('active', true)
-          .order('created_at', { ascending: false });
+        let items: CatalogProduct[] = [];
 
-        if (activeFilter !== 'Todos') {
-          query = query.eq('category', activeFilter);
+        if (activeFilter === 'Combos') {
+          // Los combos predefinidos viven en la tabla "combos"
+          const { data, error: err } = await supabase
+            .from('combos')
+            .select('id, name, description, price, original_price, image_url, active')
+            .eq('active', true)
+            .order('created_at', { ascending: false });
+          if (err) throw err;
+          items = (data || []).map(c => ({
+            id: c.id,
+            name: c.name,
+            description: c.description || '',
+            price: c.price,
+            image_url: c.image_url || '',
+            category: 'Combos' as FilterCategory,
+            badge: c.original_price && c.original_price > c.price ? 'OFERTA' : null,
+          }));
+        } else {
+          // Mercado, Electrodomésticos y Todos vienen de "products"
+          // Para "Todos" también mezclamos los combos
+          let query = supabase
+            .from('products')
+            .select('id, name, description, price, image_url, category, badge')
+            .eq('active', true)
+            .order('created_at', { ascending: false });
+
+          if (activeFilter !== 'Todos') {
+            query = query.eq('category', activeFilter);
+          }
+
+          const { data, error: err } = await query;
+          if (err) throw err;
+          const prods = (data || []).map(p => ({ ...p, category: p.category as FilterCategory }));
+
+          // Si es "Todos", también traemos los combos
+          if (activeFilter === 'Todos') {
+            const { data: combosData } = await supabase
+              .from('combos')
+              .select('id, name, description, price, original_price, image_url')
+              .eq('active', true)
+              .order('created_at', { ascending: false });
+            const combos = (combosData || []).map(c => ({
+              id: c.id,
+              name: c.name,
+              description: c.description || '',
+              price: c.price,
+              image_url: c.image_url || '',
+              category: 'Combos' as FilterCategory,
+              badge: c.original_price && c.original_price > c.price ? 'OFERTA' : null,
+            }));
+            items = [...prods, ...combos];
+          } else {
+            items = prods;
+          }
         }
 
-        const { data, error: err } = await query;
-        if (err) throw err;
-        setProducts(data || []);
+        setProducts(items);
       } catch (e) {
         console.error('Error loading products:', e);
         setError('No se pudieron cargar los productos. Verifica tu conexión.');

@@ -378,12 +378,12 @@ ${itemsText}
             </div>
             {/* Google Maps key */}
             <div className="relative">
-              <button onClick={() => { setShowKeyPanel(!showKeyPanel); setTempKey(googleKey); }}
+              {/* <button onClick={() => { setShowKeyPanel(!showKeyPanel); setTempKey(googleKey); }}
                 className="flex items-center gap-2 px-4 py-2 rounded-xl label-caps"
                 style={{ backgroundColor: 'var(--color-surface-container)', border: '1px solid var(--color-outline-variant)', color: googleKey ? '#10b981' : 'var(--color-on-surface-variant)' }}>
                 <span className="material-symbols-outlined text-[16px]">map</span>
                 {googleKey ? 'Google Maps Activo' : 'Activar Google Maps'}
-              </button>
+              </button> */}
               {showKeyPanel && (
                 <div className="absolute right-0 mt-3 w-80 rounded-xl p-5 shadow-2xl z-50"
                   style={{ backgroundColor: 'var(--color-surface-container-lowest)', border: '1px solid var(--color-outline-variant)' }}>
