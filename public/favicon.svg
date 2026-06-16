@@ -1,0 +1,32 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <!-- Rounded square black backdrop -->
+  <rect x="2" y="2" width="96" height="96" rx="24" fill="#000000" />
+  
+  <!-- AMA Logo -->
+  <g transform="translate(9, 0)">
+    <text
+      x="0"
+      y="64"
+      font-family="'Arial Black', 'Impact', sans-serif"
+      font-weight="900"
+      font-size="36"
+      fill="#FFFFFF"
+    >A</text>
+    <text
+      x="28"
+      y="64"
+      font-family="'Arial Black', 'Impact', sans-serif"
+      font-weight="900"
+      font-size="36"
+      fill="#1A56FF"
+    >M</text>
+    <text
+      x="60"
+      y="64"
+      font-family="'Arial Black', 'Impact', sans-serif"
+      font-weight="900"
+      font-size="36"
+      fill="#E8001C"
+    >A</text>
+  </g>
+</svg>
