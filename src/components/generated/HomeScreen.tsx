@@ -113,35 +113,89 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigate }) => {
               alt="Mercado artesanal de vegetales frescos"
               className="w-full h-full object-cover"
             />
+            {/* Rich gradient overlay for high contrast and modern aesthetics */}
             <div className="absolute inset-0"
-              style={{ background: 'linear-gradient(to right, rgba(2,44,34,0.55) 0%, rgba(2,44,34,0.15) 60%, transparent 100%)' }} />
+              style={{ background: 'linear-gradient(135deg, rgba(2,44,34,0.92) 0%, rgba(2,44,34,0.7) 10%, rgba(15,23,42,0.6) 00%)' }} />
           </div>
-          <div className="relative z-10 w-full px-5 md:px-16 max-w-[1280px] mx-auto text-white pt-24">
-            <div className="max-w-2xl flex flex-col gap-6">
+          <div className="relative z-10 w-full px-5 md:px-16 max-w-[1280px] mx-auto text-white pt-10 pb-16">
+            {/* Big Welcome Message ABOVE the card */}
+            <div className="mb-20 select-none animate-fade-in">
+              <h2 className="font-display font-bold text-white tracking-tight leading-tight mb-8 text-5xl md:text-8xl"
+                style={{
+                //  fontSize: 'clamp(7rem, 5vw, 3rem)',
+                  textShadow: '0 4px 16px rgba(0, 0, 0, 0.4)',
+                  letterSpacing: '-0.01em'
+                }}>
+                Bienvenido a la tienda virtual de AMA
+              </h2>
+            </div>
+
+            {/* Frosted Glassmorphism Panel */}
+            <div 
+              className="max-w-2xl rounded-2xl p-6 md:p-10 flex flex-col gap-6 backdrop-blur-md"
+              style={{
+                backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                border: '1px solid rgba(255, 255, 255, 0.15)',
+                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
+              }}
+            >
+              {/* Feature Tags / Pills */}
+              <div className="flex flex-wrap gap-2.5">
+                <span className="flex items-center gap-1.5 text-[11px] font-bold tracking-wider uppercase px-3.5 py-1.5 rounded-full"
+                  style={{ backgroundColor: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                  🏠 Sin salir de casa
+                </span>
+                <span className="flex items-center gap-1.5 text-[11px] font-bold tracking-wider uppercase px-3.5 py-1.5 rounded-full"
+                  style={{ backgroundColor: 'rgba(217,119,6,0.15)', border: '1px solid rgba(217,119,6,0.25)', color: '#FBBF24' }}>
+                  💰 Los mejores precios
+                </span>
+                <span className="flex items-center gap-1.5 text-[11px] font-bold tracking-wider uppercase px-3.5 py-1.5 rounded-full"
+                  style={{ backgroundColor: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.25)', color: '#34D399' }}>
+                  ⚡ Domicilios garantizados
+                </span>
+              </div>
+
+              {/* Main Headline */}
               <h1 className="font-display font-bold leading-tight"
-                style={{ fontSize: 'clamp(2.25rem,5vw,3rem)', letterSpacing: '-0.01em' }}>
-                AMA: Lo mejor del campo a tu hogar
+                style={{ fontSize: 'clamp(2.25rem, 5vw, 3.5rem)', letterSpacing: '-0.02em' }}>
+                Haga sus compras desde la comodidad de su casa
               </h1>
-              <p className="text-lg leading-relaxed opacity-90 max-w-lg">
-                Cosechamos calidad y tecnología premium para elevar tu experiencia culinaria diaria.
+
+              {/* Description */}
+              <p className="text-base md:text-lg leading-relaxed text-slate-200">
+                Todo lo que su hogar necesita a los mejores precios del mercado. Desde los vegetales más frescos hasta tecnología y electrodomésticos premium. Y lo mejor de todo: ¡entrega a domicilio rápida y a bajo costo, repartimos en nuestra Lambo 🏎️💨!
               </p>
+
+              {/* Actions */}
               <div className="pt-2 flex flex-wrap gap-4">
                 <button onClick={() => navigate?.('catalog', 'Todos')}
-                  className="label-caps px-8 py-4 rounded-xl transition-all active:scale-95 hover:opacity-90"
-                  style={{ backgroundColor: 'var(--color-primary)', color: 'var(--color-cream-surface)' }}>
+                  className="label-caps px-8 py-4 rounded-xl transition-all active:scale-95 hover:opacity-90 cursor-pointer flex items-center gap-2"
+                  style={{ backgroundColor: '#D97706', color: 'white', fontWeight: 'bold', boxShadow: '0 4px 14px rgba(217, 119, 6, 0.4)' }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.backgroundColor = '#F59E0B'; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.backgroundColor = '#D97706'; }}
+                >
+                  <span className="material-symbols-outlined text-[18px]">shopping_bag</span>
                   Explorar Mercado
                 </button>
-                {/* <button onClick={() => navigate?.('catalog', 'Electrodomésticos')}
-                  className="label-caps px-8 py-4 rounded-xl transition-all active:scale-95"
-                  style={{ border: '1px solid var(--color-gold-muted)', color: 'var(--color-gold-muted)', backgroundColor: 'transparent' }}
-                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.backgroundColor = 'rgba(217,119,6,0.1)'}
-                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent'}>
-                  Ver Electrodomésticos
-                </button> */}
+                <button onClick={() => navigate?.('combo')}
+                  className="label-caps px-8 py-4 rounded-xl transition-all active:scale-95 cursor-pointer flex items-center gap-2"
+                  style={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                    border: '1px solid rgba(255, 255, 255, 0.2)',
+                    color: 'white',
+                    fontWeight: 'bold'
+                  }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.backgroundColor = 'rgba(255, 255, 255, 0.18)'; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.backgroundColor = 'rgba(255, 255, 255, 0.08)'; }}
+                >
+                  <span className="material-symbols-outlined text-[18px]">build</span>
+                  Armar tu Combo
+                </button>
               </div>
             </div>
           </div>
         </section>
+
 
         {/* ── Category Cards ── */}
         <section className="py-12 md:py-16 px-5 md:px-16 max-w-[1280px] mx-auto reveal-section">
