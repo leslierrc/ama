@@ -138,13 +138,13 @@ export const AboutSection: React.FC = () => {
           {/* Video player */}
           <div
             className="relative overflow-hidden rounded-2xl cursor-pointer ambient-shadow group"
-            style={{ aspectRatio: '16/9', backgroundColor: '#0b1120' }}
+            style={{ backgroundColor: '#0b1120' }}
             onClick={toggleVideo}
           >
             <video
               ref={videoRef}
               src={video}
-              className="w-full h-full object-cover"
+              className="w-full h-auto block"
               playsInline
               loop
               onPlay={() => setVideoPlaying(true)}

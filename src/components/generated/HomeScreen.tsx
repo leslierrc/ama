@@ -6,9 +6,10 @@ import { AboutSection } from './AboutSection';
 import { useCart } from '../../hooks/useCart';
 import { supabase } from '../../lib/supabase';
 import type { Page, FilterCategory } from '../../App';
+import img from '../../assets/magicpath/tienda.webp'
 
 interface HomeScreenProps {
-  navigate?: (page: Page, filter?: FilterCategory) => void;
+  navigate?: (page: Page, filter?: FilterCategory, productInfo?: { id: string; isCombo: boolean }) => void;
 }
 
 interface FeaturedProduct {
@@ -37,7 +38,9 @@ const SkeletonCard = () => (
 export const HomeScreen: React.FC<HomeScreenProps> = ({ navigate }) => {
   const { addToCart } = useCart();
   const [featured, setFeatured] = useState<FeaturedProduct[]>([]);
+  const [marketProducts, setMarketProducts] = useState<FeaturedProduct[]>([]);
   const [loadingFeatured, setLoadingFeatured] = useState(true);
+  const [loadingMarket, setLoadingMarket] = useState(true);
   const [bannerText, setBannerText] = useState('');
 
   useEffect(() => {
@@ -74,7 +77,30 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigate }) => {
       }
     };
 
+    const loadMarket = async () => {
+      const { data } = await supabase
+        .from('products')
+        .select('id, name, description, price, image_url, category, badge')
+        .eq('active', true)
+        .eq('category', 'Mercado')
+        .order('created_at', { ascending: false })
+        .limit(6);
+      setMarketProducts(
+        (data || []).map(p => ({
+          id: p.id,
+          name: p.name,
+          description: p.description || '',
+          price: p.price,
+          image_url: p.image_url || '',
+          category: p.category,
+          badge: p.badge || null,
+        }))
+      );
+      setLoadingMarket(false);
+    };
+
     loadFeatured();
+    loadMarket();
     loadSettings();
   }, []);
 
@@ -203,7 +229,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigate }) => {
             <div className="group relative overflow-hidden rounded-xl cursor-pointer ambient-shadow"
               style={{ aspectRatio: '16/9' }}
               onClick={() => navigate?.('catalog', 'Mercado')}>
-              <img src="https://images.unsplash.com/photo-1488459716781-31db52582fe9?auto=format&fit=crop&q=80&w=900"
+              <img src={img}
                 alt="Mercado Premium"
                 className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
               <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors" />
@@ -320,6 +346,77 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigate }) => {
           </div>
         </section>
 
+        {/* ── Productos del Mercado ── */}
+        <section className="py-12 md:py-16 px-5 md:px-16 max-w-[1280px] mx-auto reveal-section">
+          <div className="flex justify-between items-end mb-8">
+            <div>
+              <span className="label-caps block mb-1" style={{ color: 'var(--color-gold-muted)' }}>DISPONIBLE HOY</span>
+              <h2 className="font-display text-3xl font-semibold" style={{ color: 'var(--color-primary)' }}>
+                Del Mercado para tu Mesa
+              </h2>
+            </div>
+            <button onClick={() => navigate?.('catalog', 'Mercado')}
+              className="label-caps transition-colors duration-300 hidden sm:block"
+              style={{ color: 'var(--color-primary-container)' }}
+              onMouseEnter={e => (e.currentTarget.style.color = 'var(--color-secondary)')}
+              onMouseLeave={e => (e.currentTarget.style.color = 'var(--color-primary-container)')}>
+              VER TODOS
+            </button>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+            {loadingMarket
+              ? Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)
+              : marketProducts.map(product => (
+                <div key={product.id}
+                  className="group flex flex-col overflow-hidden rounded-xl ambient-shadow transition-transform duration-300 cursor-pointer"
+                  style={{ backgroundColor: 'var(--color-surface-container-low)' }}
+                  onClick={() => navigate?.('detail', undefined, { id: product.id, isCombo: false })}>
+                  <div className="relative overflow-hidden aspect-square">
+                    <img
+                      src={product.image_url || 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=600'}
+                      alt={product.name}
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                      onError={e => { (e.currentTarget as HTMLImageElement).src = 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=600'; }}
+                    />
+                    <button
+                      onClick={ev => {
+                        ev.stopPropagation();
+                        addToCart({ id: product.id, title: product.name, price: product.price, image: product.image_url, category: product.category as FilterCategory });
+                        navigate?.('cart');
+                      }}
+                      className="absolute bottom-3 right-3 p-2.5 rounded-full shadow-lg opacity-0 translate-y-3 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 active:scale-90"
+                      style={{ backgroundColor: 'var(--color-primary)', color: 'white' }}
+                      aria-label={`Añadir ${product.name} al carrito`}>
+                      <span className="material-symbols-outlined text-[18px]">add_shopping_cart</span>
+                    </button>
+                    {product.badge && (
+                      <span className="absolute top-2 left-2 label-caps px-2 py-0.5 rounded-full text-white text-[10px]"
+                        style={{ backgroundColor: 'var(--color-secondary)' }}>
+                        {product.badge}
+                      </span>
+                    )}
+                  </div>
+                  <div className="p-3 flex flex-col gap-1">
+                    <h3 className="font-semibold text-sm leading-tight line-clamp-2" style={{ color: 'var(--color-primary)' }}>
+                      {product.name}
+                    </h3>
+                    <span className="text-base font-semibold" style={{ color: 'var(--color-secondary)', fontFamily: 'Inter' }}>
+                      ${Number(product.price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                </div>
+              ))
+            }
+          </div>
+          <div className="mt-6 flex justify-center sm:hidden">
+            <button onClick={() => navigate?.('catalog', 'Mercado')}
+              className="label-caps px-8 py-3 rounded-xl hover:opacity-90 active:scale-95"
+              style={{ backgroundColor: 'var(--color-primary)', color: 'white' }}>
+              Ver todos los productos
+            </button>
+          </div>
+        </section>
+
         {/* ── Arma tu Combo CTA ── */}
         <section className="py-12 md:py-20 px-5 md:px-16 reveal-section"
           style={{ backgroundColor: 'var(--color-primary)' }}>
@@ -365,6 +462,87 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigate }) => {
                     <p className="text-xs" style={{ color: 'rgba(255,255,255,0.6)' }}>{item.sub}</p>
                   </div>
                 ))}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ── Visítanos ── */}
+        <section className="py-16 md:py-20 px-5 md:px-16 reveal-section"
+          style={{ backgroundColor: 'var(--color-surface-container-low)' }}>
+          <div className="max-w-[1280px] mx-auto">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-10 items-center">
+              {/* Map embed placeholder */}
+              <div className="relative rounded-2xl overflow-hidden ambient-shadow" style={{ aspectRatio: '4/3' }}>
+                <iframe
+                  title="Ubicación AMA Store"
+                  width="100%"
+                  height="100%"
+                  style={{ border: 0, position: 'absolute', inset: 0 }}
+                  loading="lazy"
+                  allowFullScreen
+                  src="https://www.google.com/maps?q=Calle+Lasola+21+entre+Ave+Lacret+y+General+Lee+La+Habana+Cuba&output=embed"
+                />
+              </div>
+
+              {/* Info */}
+              <div className="flex flex-col gap-6">
+                <div>
+                  <span className="label-caps block mb-1" style={{ color: 'var(--color-gold-muted)' }}>ENCUÉNTRANOS</span>
+                  <h2 className="font-display text-3xl md:text-4xl font-bold leading-tight" style={{ color: 'var(--color-primary)', letterSpacing: '-0.01em' }}>
+                    Visítanos en Persona
+                  </h2>
+                </div>
+
+                <div className="flex flex-col gap-4">
+                  <div className="flex items-start gap-3 p-4 rounded-xl"
+                    style={{ backgroundColor: 'var(--color-surface-container)', border: '1px solid var(--color-outline-variant)' }}>
+                    <span className="material-symbols-outlined shrink-0 mt-0.5" style={{ color: 'var(--color-primary)' }}>location_on</span>
+                    <div>
+                      <p className="font-semibold" style={{ color: 'var(--color-on-surface)' }}>Calle Lasola #21</p>
+                      <p className="text-sm" style={{ color: 'var(--color-on-surface-variant)' }}>Entre Ave. Lacret y General Lee, La Habana, Cuba</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-3 p-4 rounded-xl"
+                    style={{ backgroundColor: 'var(--color-surface-container)', border: '1px solid var(--color-outline-variant)' }}>
+                    <span className="material-symbols-outlined shrink-0 mt-0.5" style={{ color: 'var(--color-secondary)' }}>schedule</span>
+                    <div>
+                      <p className="font-semibold" style={{ color: 'var(--color-on-surface)' }}>Horario de atención</p>
+                      <p className="text-sm" style={{ color: 'var(--color-on-surface-variant)' }}>Lunes a Domingo · Hasta las 6:00 PM</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-3 p-4 rounded-xl"
+                    style={{ backgroundColor: 'var(--color-surface-container)', border: '1px solid var(--color-outline-variant)' }}>
+                    <span className="material-symbols-outlined shrink-0 mt-0.5" style={{ color: '#25D366' }}>chat</span>
+                    <div>
+                      <p className="font-semibold" style={{ color: 'var(--color-on-surface)' }}>¿Tienes dudas?</p>
+                      <p className="text-sm" style={{ color: 'var(--color-on-surface-variant)' }}>Escríbenos por WhatsApp y te respondemos de inmediato</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <a
+                    href="https://www.google.com/maps/search/?api=1&query=Calle+Lasola+21+entre+Ave+Lacret+y+General+Lee+La+Habana+Cuba"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 flex items-center justify-center gap-2 px-6 py-4 rounded-xl label-caps transition-all active:scale-95 hover:opacity-90"
+                    style={{ backgroundColor: 'var(--color-primary)', color: 'white' }}>
+                    <span className="material-symbols-outlined text-[20px]">map</span>
+                    Cómo llegar
+                  </a>
+                  <a
+                    href="https://wa.me/5355542936"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 flex items-center justify-center gap-2 px-6 py-4 rounded-xl label-caps transition-all active:scale-95 hover:opacity-90"
+                    style={{ backgroundColor: '#25D366', color: 'white' }}>
+                    <span className="material-symbols-outlined text-[20px]">chat</span>
+                    WhatsApp
+                  </a>
+                </div>
               </div>
             </div>
           </div>

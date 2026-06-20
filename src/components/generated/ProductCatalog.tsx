@@ -7,7 +7,7 @@ import { supabase } from '../../lib/supabase';
 import type { Page, FilterCategory } from '../../App';
 
 interface ProductCatalogProps {
-  navigate?: (page: Page, filter?: FilterCategory) => void;
+  navigate?: (page: Page, filter?: FilterCategory, productInfo?: { id: string; isCombo: boolean }) => void;
   activeFilter?: FilterCategory;
   setActiveFilter?: (filter: FilterCategory) => void;
 }
@@ -197,7 +197,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               <div key={product.id}
                 className="group flex flex-col overflow-hidden rounded-xl ambient-shadow transition-all duration-300 cursor-pointer"
                 style={{ backgroundColor: 'var(--color-surface-container-low)', animationDelay: `${i * 40}ms` }}
-                onClick={() => navigate?.('detail')}>
+                onClick={() => navigate?.('detail', undefined, { id: product.id, isCombo: product.category === 'Combos' })}>
                 <div className="relative overflow-hidden aspect-square">
                   <img src={product.image_url || 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=600'}
                     alt={product.name}

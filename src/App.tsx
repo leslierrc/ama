@@ -42,10 +42,16 @@ function AdminLoadingFallback() {
 export default function App() {
   const [currentPage, setCurrentPage] = useState<Page>('home');
   const [catalogFilter, setCatalogFilter] = useState<FilterCategory>('Todos');
+  const [selectedProduct, setSelectedProduct] = useState<{ id: string; isCombo: boolean } | null>(null);
 
-  const navigate = (page: Page, filter?: FilterCategory) => {
+  const navigate = (
+    page: Page,
+    filter?: FilterCategory,
+    productInfo?: { id: string; isCombo: boolean }
+  ) => {
     setCurrentPage(page);
     if (filter) setCatalogFilter(filter);
+    if (productInfo) setSelectedProduct(productInfo);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -67,7 +73,9 @@ export default function App() {
           {currentPage === 'catalog' && (
             <ProductCatalog navigate={navigate} activeFilter={catalogFilter} setActiveFilter={setCatalogFilter} />
           )}
-          {currentPage === 'detail'  && <ProductDetailPage navigate={navigate} />}
+          {currentPage === 'detail'  && (
+            <ProductDetailPage navigate={navigate} selectedProduct={selectedProduct} />
+          )}
           {currentPage === 'combo'   && <ComboBuilderScreen navigate={navigate} />}
           {currentPage === 'cart'    && <ShoppingCart navigate={navigate} />}
 
