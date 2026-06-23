@@ -80,29 +80,11 @@ export default async function handler(req, res) {
     // 1. OAuth token
     const accessToken = await getAccessToken();
 
-    // 2. Objeto client — igual que petshop:
-    //    si tenemos todos los campos lo pre-cargamos en TropiPay,
-    //    si no, TropiPay se los pide al cliente en su página
-    const nameParts = (customerName ?? "").trim().split(" ");
-    const firstName = nameParts[0] ?? "-";
-    const lastName  = nameParts.slice(1).join(" ") || "-";
-
-    const hasFullClient = !!(customerName && customerPhone && customerAddress);
-
-    const clientData = hasFullClient
-      ? {
-          name:               firstName,
-          lastName:           lastName,
-          address:            customerAddress,
-          phone:              customerPhone,
-          email:              "cliente@ama.cu",   // TropiPay lo requiere; placeholder
-          city:               "La Habana",
-          postCode:           "10400",
-          countryId:          54,                 // Cuba = 54
-          termsAndConditions: "true",
-          dateOfBirth:        "1990-01-01",        // requerido por API
-        }
-      : null;
+    // 2. Objeto client — en petshop pasaban null si no estaban TODOS los datos.
+    // Como en AMA no pedimos el email ni el dateOfBirth, pasar datos falsos como 'cliente@ama.cu'
+    // provoca errores de seguridad en TropiPay ("Card credit cashin limit exceded" o bloqueos).
+    // Al pasar null, TropiPay se encarga de pedirle los datos (email, etc.) al cliente de forma segura.
+    const clientData = null;
 
     // 3. Crear enlace de pago (amount en centavos)
     const amountCents = Math.round(amount * 100);

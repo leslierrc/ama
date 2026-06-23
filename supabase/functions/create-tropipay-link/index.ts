@@ -87,29 +87,11 @@ serve(async (req: Request) => {
     // 1. Token OAuth
     const accessToken = await getAccessToken(clientId, clientSecret);
 
-    // 2. Objeto client — si tenemos nombre y teléfono lo pre-cargamos
-    //    TropiPay requiere TODOS los campos o ninguno, así que solo enviamos
-    //    client si podemos construirlo completo
-    const nameParts = (customerName ?? "").trim().split(" ");
-    const firstName = nameParts[0] ?? "-";
-    const lastName  = nameParts.slice(1).join(" ") || "-";
-
-    const hasFullClient = !!(customerName && customerPhone && customerAddress);
-
-    const clientData = hasFullClient
-      ? {
-          name:               firstName,
-          lastName:           lastName,
-          address:            customerAddress!,
-          phone:              customerPhone!,
-          email:              "cliente@ama.cu",   // TropiPay lo requiere; usamos placeholder
-          city:               "La Habana",
-          postCode:           "10400",
-          countryId:          54,                 // Cuba = 54
-          termsAndConditions: "true",
-          dateOfBirth:        "1990-01-01",        // placeholder requerido por API
-        }
-      : null;
+    // 2. Objeto client — si no tenemos TODOS los datos exactos del cliente (incluyendo email válido), 
+    // es mejor pasar null. Al pasar datos falsos como 'cliente@ama.cu', TropiPay lanza error:
+    // "Card credit cashin limit exceded" o bloquea la transacción por seguridad.
+    // Al pasar null, TropiPay se encarga de pedirle todos los datos al cliente en su web.
+    const clientData = null;
 
     // 3. Crear enlace de pago
     const amountCents = Math.round(amount * 100);
