@@ -172,7 +172,7 @@ export const ShoppingCart: React.FC<ShoppingCartProps> = ({ navigate }) => {
         delivery_address: address.trim(), notes: notes.trim() || null,
         subtotal: total, total,
         status: method === 'tropipay' ? 'awaiting_payment' : 'pending',
-        payment_method: method,
+        payment_method: method === 'tropipay' ? 'paypal' : method, // Workaround: DB check constraint solo permite 'whatsapp' o 'paypal'
         paypal_order_id: tropipayRef || null,
         gps_lat: coords.lat, gps_lng: coords.lng,
       }).select().single();

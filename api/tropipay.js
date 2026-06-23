@@ -101,7 +101,7 @@ export default async function handler(req, res) {
         favorite:        false,
         description:     description ?? `Pedido AMA #${orderId}`,
         amount:          amountCents,
-        currency:        "USD",
+        currency:        "EUR", // Cambiado a EUR para evitar "Card credit cashin limit exceded" por limites en USD
         singleUse:       true,
         reasonId:        4,
         expirationDays:  1,

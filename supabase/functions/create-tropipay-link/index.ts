@@ -108,7 +108,7 @@ serve(async (req: Request) => {
         favorite:        false,
         description:     description ?? `Pedido AMA #${orderId}`,
         amount:          amountCents,
-        currency:        "USD",
+        currency:        "EUR", // Cambiado a EUR
         singleUse:       true,
         reasonId:        4,
         expirationDays:  1,
