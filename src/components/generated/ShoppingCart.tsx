@@ -262,7 +262,6 @@ export const ShoppingCart: React.FC<ShoppingCartProps> = ({ navigate }) => {
       if (!res.ok || !data.paymentUrl) {
         throw new Error(data.error || 'No se pudo crear el enlace de pago');
       }
-      sendWhatsApp('tropipay', orderNumber, data.reference || orderNumber);
       window.location.href = data.paymentUrl;
     } catch (err: any) {
       setFormError(err.message || 'Error al conectar con TropiPay. Intenta de nuevo.');
