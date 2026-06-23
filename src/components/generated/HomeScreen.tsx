@@ -136,15 +136,15 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigate }) => {
             />
             <div className="absolute inset-0 bg-black/50" />
           </div>
-          <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full flex flex-col justify-center items-start pt-32 pb-20">
-              <div className="mb-2 select-none animate-fade-in">
+          <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full flex flex-col justify-center items-start pt-20 pb-20">
+              <div className="mb-20 select-none animate-fade-in">
               <h2 className="font-display font-bold text-white tracking-tight leading-tight  text-5xl md:text-8xl"
                 style={{
                 //  fontSize: 'clamp(7rem, 5vw, 3rem)',
                   textShadow: '0 4px 16px rgba(0, 0, 0, 0.4)',
                   letterSpacing: '-0.01em'
                 }}>
-                Bienvenido a la tienda virtual de AMA
+                Bienvenido a la tienda virtual de AMA!
               </h2>
             </div>
             <h1 className="font-display font-bold text-white mb-6 leading-tight max-w-4xl"

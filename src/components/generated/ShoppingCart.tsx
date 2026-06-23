@@ -1,87 +1,21 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { PayPalButtons, usePayPalScriptReducer } from '@paypal/react-paypal-js';
 import { Navbar } from './Navbar';
 import { Footer } from './Footer';
 import { useCart } from '../../hooks/useCart';
 import { supabase } from '../../lib/supabase';
 import type { Page, FilterCategory } from '../../App';
 
-type PaymentMethod = 'whatsapp' | 'paypal';
+type PaymentMethod = 'whatsapp' | 'tropipay';
 interface ShoppingCartProps { navigate?: (page: Page, filter?: FilterCategory) => void; }
 
 const WA_NUMBER = import.meta.env.VITE_WHATSAPP_NUMBER || '5355542936';
 const fmt = (n: number) =>
   `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-// ── PayPal Button wrapper ─────────────────────────────────────────────────────
-interface PPBtnProps {
-  totalUSD: string;
-  disabled: boolean;
-  onValidate: () => boolean;
-  createOrder: (data: Record<string, unknown>, actions: any) => Promise<string>;
-  onApprove: (data: Record<string, unknown>, actions: any) => Promise<void>;
-  onError: (err: unknown) => void;
-}
-
-const PayPalCheckoutButton: React.FC<PPBtnProps> = ({
-  totalUSD, disabled, onValidate, createOrder, onApprove, onError,
-}) => {
-  const [{ isPending, isRejected }] = usePayPalScriptReducer();
-  const [ppError, setPpError] = useState('');
-
-  if (isRejected) return (
-    <div className="rounded-xl p-4 text-center text-sm"
-      style={{ backgroundColor: 'rgba(186,26,26,0.08)', color: '#ba1a1a', border: '1px solid rgba(186,26,26,0.2)' }}>
-      ⚠️ No se pudo cargar PayPal. Usa el pago por WhatsApp.
-    </div>
-  );
-
-  if (isPending) return (
-    <div className="rounded-xl py-4 flex items-center justify-center gap-3"
-      style={{ backgroundColor: '#f0f4ff', border: '1px solid #c7d4f5' }}>
-      <div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin"
-        style={{ borderColor: '#0070BA', borderTopColor: 'transparent' }} />
-      <span className="text-sm font-medium" style={{ color: '#003087' }}>Cargando PayPal…</span>
-    </div>
-  );
-
-  return (
-    <div className="flex flex-col gap-3">
-      <div className="rounded-xl p-3 flex items-start gap-3"
-        style={{ backgroundColor: '#f0f4ff', border: '1px solid #c7d4f5' }}>
-        <span className="material-symbols-outlined text-[18px] shrink-0 mt-0.5" style={{ color: '#0070BA' }}>info</span>
-        <p className="text-xs leading-relaxed" style={{ color: '#003087' }}>
-          Al hacer clic se abrirá la ventana segura de PayPal. El monto a cobrar será{' '}
-          <strong>${totalUSD} USD</strong>. Completa los datos de entrega primero.
-        </p>
-      </div>
-      {ppError && (
-        <p className="text-sm px-3 py-2 rounded-lg"
-          style={{ backgroundColor: 'rgba(186,26,26,0.08)', color: '#ba1a1a', border: '1px solid rgba(186,26,26,0.2)' }}>
-          ⚠️ {ppError}
-        </p>
-      )}
-      <div className={disabled ? 'opacity-40 pointer-events-none' : ''}>
-        <PayPalButtons
-          style={{ layout: 'vertical', color: 'blue', shape: 'rect', label: 'pay', height: 50, tagline: false }}
-          createOrder={(data, actions) => {
-            setPpError('');
-            if (!onValidate()) return Promise.reject(new Error('form'));
-            return createOrder(data, actions);
-          }}
-          onApprove={onApprove}
-          onError={err => { setPpError('Error al procesar. Intenta de nuevo.'); onError(err); }}
-          onCancel={() => setPpError('Pago cancelado. Puedes intentarlo de nuevo.')}
-          disabled={disabled}
-          forceReRender={[totalUSD]}
-        />
-      </div>
-      <p className="text-xs text-center" style={{ color: 'var(--color-on-surface-variant)' }}>
-        🔒 Pago procesado de forma segura por PayPal
-      </p>
-    </div>
-  );
-};
+// Vercel Serverless Function — /api/tropipay
+// En local apunta a http://localhost:3000/api/tropipay (vite proxy lo redirige)
+// En Vercel apunta al mismo dominio automáticamente
+const TROPIPAY_FUNCTION_URL = '/api/tropipay';
 
 // ── Main component ────────────────────────────────────────────────────────────
 export const ShoppingCart: React.FC<ShoppingCartProps> = ({ navigate }) => {
@@ -94,6 +28,7 @@ export const ShoppingCart: React.FC<ShoppingCartProps> = ({ navigate }) => {
   const [orderedVia, setOrderedVia] = useState<PaymentMethod>('whatsapp');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('whatsapp');
   const [formError, setFormError] = useState('');
+  const [tropipayLoading, setTropipayLoading] = useState(false);
 
   const [coords, setCoords] = useState({ lat: 23.1136, lng: -82.3666 });
   const [suggestions, setSuggestions] = useState<any[]>([]);
@@ -229,14 +164,16 @@ export const ShoppingCart: React.FC<ShoppingCartProps> = ({ navigate }) => {
     googleMapRef.current?.setCenter({ lat, lng }); googleMarkerRef.current?.setPosition({ lat, lng });
   };
 
-  const saveOrder = async (method: PaymentMethod, paypalId?: string) => {
+  const saveOrder = async (method: PaymentMethod, tropipayRef?: string) => {
     try {
       const orderNumber = `AMA-${Date.now().toString().slice(-8)}`;
       const { data: order, error } = await supabase.from('orders').insert({
         order_number: orderNumber, customer_name: name.trim(), customer_phone: phone.trim(),
         delivery_address: address.trim(), notes: notes.trim() || null,
-        subtotal: total, total, status: method === 'paypal' ? 'paid' : 'pending',
-        payment_method: method, paypal_order_id: paypalId || null,
+        subtotal: total, total,
+        status: method === 'tropipay' ? 'awaiting_payment' : 'pending',
+        payment_method: method,
+        paypal_order_id: tropipayRef || null,
         gps_lat: coords.lat, gps_lng: coords.lng,
       }).select().single();
       if (error) throw error;
@@ -253,36 +190,37 @@ export const ShoppingCart: React.FC<ShoppingCartProps> = ({ navigate }) => {
     } catch { return `AMA-${Date.now().toString().slice(-8)}`; }
   };
 
-  const sendWhatsApp = (method: PaymentMethod, orderNumber: string, paypalId?: string) => {
+  const sendWhatsApp = (method: PaymentMethod, orderNumber: string, extra?: string) => {
     const dateStr = new Date().toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short' });
     const itemsText = cart.map(item => {
-      let t = `📦 *${item.quantity}x ${item.title}* — ${fmt(item.price * item.quantity)}`;
+      let t = `📦 *${item.quantity}x ${item.title}* — $${fmt(item.price * item.quantity)}`;
       if (item.isCombo && item.comboItems?.length)
         t += '\n' + item.comboItems.map(ci => `   🔹 ${ci.quantity}× ${ci.name}`).join('\n');
       return t;
     }).join('\n\n');
     const gpsLink = `https://www.google.com/maps/place/${coords.lat},${coords.lng}`;
-    const paymentLine = method === 'paypal'
-      ? `💳 *Pago:* PayPal ✅ (ID: ${paypalId})\n💵 *USD pagado:* $${totalUSD}`
+    const paymentLine = method === 'tropipay'
+      ? `💳 *Pago:* TropiPay 🔗 (Ref: ${extra || orderNumber})\n💵 *USD a pagar:* $${totalUSD}`
       : '💵 *Pago:* Contra entrega en USD';
-    const message =
-`🌿 *NUEVO PEDIDO AMA* #${orderNumber} 🌿
-📆 *Fecha:* ${dateStr}
-──────────────────────
-👤 *Cliente:* ${name.trim()}
-📞 *Teléfono:* ${phone.trim()}
-📍 *Dirección:* ${address.trim()}
-🧭 *Ubicación:* ${gpsLink}
-📝 *Notas:* ${notes.trim() || 'Ninguna'}
-${paymentLine}
-──────────────────────
-🛒 *PRODUCTOS:*
-${itemsText}
-──────────────────────
-💰 *TOTAL:* *${fmt(total)}*
-──────────────────────
-✅ ¡Gracias por comprar en AMA! Entrega en 24h 🌿`;
-    window.open(`https://wa.me/${WA_NUMBER}?text=${encodeURIComponent(message)}`, '_blank');
+    const msg = [
+      `🌿 *NUEVO PEDIDO AMA* #${orderNumber} 🌿`,
+      `📆 *Fecha:* ${dateStr}`,
+      '──────────────────────',
+      `👤 *Cliente:* ${name.trim()}`,
+      `📞 *Teléfono:* ${phone.trim()}`,
+      `📍 *Dirección:* ${address.trim()}`,
+      `🧭 *Ubicación:* ${gpsLink}`,
+      `📝 *Notas:* ${notes.trim() || 'Ninguna'}`,
+      paymentLine,
+      '──────────────────────',
+      '🛒 *PRODUCTOS:*',
+      itemsText,
+      '──────────────────────',
+      `💰 *TOTAL:* *$${fmt(total)}*`,
+      '──────────────────────',
+      '✅ ¡Gracias por comprar en AMA! Entrega en 24h 🌿',
+    ].join('\n');
+    window.open(`https://wa.me/${WA_NUMBER}?text=${encodeURIComponent(msg)}`, '_blank');
   };
 
   const validateForm = () => {
@@ -299,19 +237,40 @@ ${itemsText}
     setOrderedVia('whatsapp'); setOrdered(true); clearCart();
   };
 
-  const createPayPalOrder = (_d: Record<string, unknown>, actions: any) => {
-    if (!validateForm()) return Promise.reject(new Error('form'));
-    return actions.order.create({
-      purchase_units: [{ amount: { value: totalUSD, currency_code: 'USD' }, description: `AMA Store — ${cart.length} producto(s)` }],
-    });
+  // ── TropiPay: genera enlace y redirige ──────────────────────────────────────
+  const handleTropipayCheckout = async () => {
+    if (!validateForm()) return;
+    if (cart.length === 0) return;
+    setTropipayLoading(true);
+    setFormError('');
+    try {
+      const orderNumber = await saveOrder('tropipay');
+      const description = `Pedido AMA #${orderNumber} (${cart.length} producto${cart.length > 1 ? 's' : ''})`;
+      const res = await fetch(TROPIPAY_FUNCTION_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId: orderNumber,
+          amount: total,
+          description,
+          customerName: name.trim(),
+          customerPhone: phone.trim(),
+          customerAddress: address.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.paymentUrl) {
+        throw new Error(data.error || 'No se pudo crear el enlace de pago');
+      }
+      sendWhatsApp('tropipay', orderNumber, data.reference || orderNumber);
+      window.location.href = data.paymentUrl;
+    } catch (err: any) {
+      setFormError(err.message || 'Error al conectar con TropiPay. Intenta de nuevo.');
+    } finally {
+      setTropipayLoading(false);
+    }
   };
 
-  const onPayPalApprove = async (_d: Record<string, unknown>, actions: any) => {
-    const details = await actions.order.capture();
-    const orderNumber = await saveOrder('paypal', details.id);
-    sendWhatsApp('paypal', orderNumber, details.id);
-    setOrderedVia('paypal'); setOrdered(true); clearCart();
-  };
 
   const handleSaveKey = () => {
     const k = tempKey.trim(); setGoogleKey(k); localStorage.setItem('ama_google_key', k);
@@ -336,13 +295,13 @@ ${itemsText}
       <div className="min-h-screen" style={{ backgroundColor: 'var(--color-surface)', color: 'var(--color-on-surface)' }}>
         <Navbar navigate={navigate} />
         <main className="pt-32 pb-24 flex flex-col items-center justify-center text-center px-6">
-          <div className="text-7xl mb-6">{orderedVia === 'paypal' ? '💳' : '🎉'}</div>
+          <div className="text-7xl mb-6">{orderedVia === 'tropipay' ? '💳' : '🎉'}</div>
           <h1 className="font-display font-bold mb-4" style={{ color: 'var(--color-primary)', fontSize: 'clamp(1.75rem,4vw,2.5rem)' }}>
-            {orderedVia === 'paypal' ? '¡Pago completado con PayPal!' : '¡Pedido enviado a WhatsApp!'}
+            {orderedVia === 'tropipay' ? '¡Pago iniciado con TropiPay!' : '¡Pedido enviado a WhatsApp!'}
           </h1>
           <p className="text-lg mb-2 max-w-md leading-relaxed" style={{ color: 'var(--color-on-surface-variant)' }}>
-            {orderedVia === 'paypal'
-              ? <><span>Tu pago fue procesado. </span><span style={{ color: 'var(--color-primary)', fontWeight: 600 }}>Envía el mensaje de WhatsApp</span><span> para coordinar la entrega.</span></>
+            {orderedVia === 'tropipay'
+              ? <><span>Fuiste redirigido a TropiPay. </span><span style={{ color: 'var(--color-primary)', fontWeight: 600 }}>Completa el pago</span><span> y recibes tu pedido en 24h.</span></>
               : <><span>Por favor </span><span style={{ color: 'var(--color-primary)', fontWeight: 600 }}>envía el mensaje generado</span><span> en WhatsApp para confirmar.</span></>}
           </p>
           <p className="text-sm mb-10" style={{ color: 'var(--color-on-surface-variant)' }}>¡Tu pedido llegará en menos de 24 horas! 🌿</p>
@@ -614,20 +573,20 @@ ${itemsText}
                     </div>
                   </button>
 
-                  {/* PayPal */}
-                  <button onClick={() => setPaymentMethod('paypal')}
+                  {/* TropiPay */}
+                  <button onClick={() => setPaymentMethod('tropipay')}
                     className="flex items-center gap-4 p-4 rounded-xl text-left transition-all"
-                    style={{ border: paymentMethod === 'paypal' ? '2px solid #0070BA' : '1px solid var(--color-outline-variant)', backgroundColor: paymentMethod === 'paypal' ? 'rgba(0,112,186,0.04)' : 'var(--color-surface-container)' }}>
-                    <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: '#003087' }}>
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M7.076 21.337H2.47a.641.641 0 0 1-.633-.74L4.944.901C5.026.382 5.474 0 5.998 0h7.46c2.57 0 4.578.543 5.69 1.81 1.01 1.15 1.304 2.42 1.012 4.287-.023.143-.047.288-.077.437-.983 5.05-4.349 6.797-8.647 6.797h-2.19c-.524 0-.968.382-1.05.9l-1.12 7.106zm14.146-14.42a3.35 3.35 0 0 0-.607-.541c-.013.076-.026.175-.041.254-.93 4.778-4.005 7.201-9.138 7.201h-2.19a.563.563 0 0 0-.556.479l-1.187 7.527h-.506l-.24 1.516a.56.56 0 0 0 .554.647h3.882c.46 0 .85-.334.922-.788.06-.26.76-4.852.816-5.09a.932.932 0 0 1 .923-.788h.58c3.76 0 6.705-1.528 7.565-5.946.36-1.847.174-3.388-.777-4.471z"/></svg>
+                    style={{ border: paymentMethod === 'tropipay' ? '2px solid #00B4D8' : '1px solid var(--color-outline-variant)', backgroundColor: paymentMethod === 'tropipay' ? 'rgba(0,180,216,0.05)' : 'var(--color-surface-container)' }}>
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: '#006B7D' }}>
+                      <span className="text-white font-bold text-sm leading-none">TP</span>
                     </div>
                     <div className="flex-1">
-                      <p className="font-semibold text-sm" style={{ color: 'var(--color-on-surface)' }}>Pagar con PayPal</p>
-                      <p className="text-xs mt-0.5" style={{ color: 'var(--color-on-surface-variant)' }}>Pago seguro en USD · {fmt(total)}</p>
+                      <p className="font-semibold text-sm" style={{ color: 'var(--color-on-surface)' }}>Pagar con Tarjeta</p>
+                      <p className="text-xs mt-0.5" style={{ color: 'var(--color-on-surface-variant)' }}>Pago seguro desde el exterior · ${fmt(total)} USD</p>
                     </div>
                     <div className="w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center"
-                      style={{ borderColor: paymentMethod === 'paypal' ? '#0070BA' : 'var(--color-outline-variant)' }}>
-                      {paymentMethod === 'paypal' && <div className="w-2 h-2 rounded-full" style={{ backgroundColor: '#0070BA' }} />}
+                      style={{ borderColor: paymentMethod === 'tropipay' ? '#00B4D8' : 'var(--color-outline-variant)' }}>
+                      {paymentMethod === 'tropipay' && <div className="w-2 h-2 rounded-full" style={{ backgroundColor: '#00B4D8' }} />}
                     </div>
                   </button>
                 </div>
@@ -643,20 +602,21 @@ ${itemsText}
                 <div className="mt-2">
                   {paymentMethod === 'whatsapp' ? (
                     <button onClick={handleWhatsAppCheckout} disabled={cart.length === 0}
-                      className="w-full flex items-center justify-center gap-2 py-4 rounded-xl label-caps transition-all active:scale-95 hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
+                      className="w-full flex items-center justify-center gap-2 py-4 rounded-xl label-caps font-bold transition-all active:scale-95 hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
                       style={{ backgroundColor: '#25D366', color: 'white' }}>
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                      <span className="material-symbols-outlined text-[20px]">chat</span>
                       Confirmar por WhatsApp
                     </button>
                   ) : (
-                    <PayPalCheckoutButton
-                      totalUSD={totalUSD}
-                      disabled={cart.length === 0}
-                      onValidate={validateForm}
-                      createOrder={createPayPalOrder}
-                      onApprove={onPayPalApprove}
-                      onError={err => { console.error('PayPal error:', err); setFormError('Error al procesar el pago. Intenta de nuevo.'); }}
-                    />
+                    <button onClick={handleTropipayCheckout} disabled={cart.length === 0 || tropipayLoading}
+                      className="w-full flex items-center justify-center gap-2 py-4 rounded-xl label-caps font-bold transition-all active:scale-95 hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
+                      style={{ backgroundColor: '#006B7D', color: 'white' }}>
+                      {tropipayLoading ? (
+                        <><div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'white', borderTopColor: 'transparent' }} /><span>Generando enlace...</span></>
+                      ) : (
+                        <><span className="material-symbols-outlined text-[20px]">open_in_new</span><span>Pagar con TropiPay</span></>
+                      )}
+                    </button>
                   )}
                 </div>
 
