@@ -12,8 +12,9 @@
  *   VITE_APP_URL           = https://ama-5svv.vercel.app  (sin slash final)
  */
 
-const TROPIPAY_AUTH = "https://www.tropipay.com/api/v2/access/token";
 const TROPIPAY_API  = "https://www.tropipay.com/api/v3";
+// Auth también en v3 — usando v2 genera tokens legacy que producen URLs /money-request
+const TROPIPAY_AUTH = "https://www.tropipay.com/api/v3/access/token";
 
 const APP_URL = process.env.VITE_APP_URL ?? "https://ama-5svv.vercel.app";
 const isDev   = APP_URL.startsWith("http://localhost") || APP_URL.startsWith("http://127.");
@@ -30,7 +31,6 @@ async function getAccessToken() {
       client_id:     process.env.TROPIPAY_CLIENT_ID,
       client_secret: process.env.TROPIPAY_CLIENT_SECRET,
       grant_type:    "client_credentials",
-      scope:         "ALLOW_PAYMENT_IN ALLOW_EXTERNAL_CHARGE",
     }),
   });
   if (!res.ok) {
