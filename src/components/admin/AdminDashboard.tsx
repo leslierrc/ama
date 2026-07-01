@@ -163,7 +163,7 @@ const exportOrdersPDF = (orders: DbOrder[]) => {
   autoTable(doc, {
     startY: 36,
     head: [['#', 'Cliente', 'Teléfono', 'Total', 'Método', 'Estado', 'Fecha']],
-    body: orders.map(o => [o.order_number, o.customer_name, o.customer_phone, `$${Number(o.total).toLocaleString('en-US', {minimumFractionDigits:2,maximumFractionDigits:2})}`, o.payment_method === 'paypal' ? 'PayPal' : 'WhatsApp', STATUS_LABELS[o.status] || o.status, new Date(o.created_at).toLocaleDateString('es-ES')]),
+    body: orders.map(o => [o.order_number, o.customer_name, o.customer_phone, `$${Number(o.total).toLocaleString('en-US', {minimumFractionDigits:2,maximumFractionDigits:2})}`, getPaymentLabel(o), STATUS_LABELS[o.status] || o.status, new Date(o.created_at).toLocaleDateString('es-ES')]),
     styles: { fontSize: 9 }, headStyles: { fillColor: [0, 53, 39] },
   });
   doc.save('pedidos-ama.pdf');
@@ -278,6 +278,20 @@ const ComboItemsEditor: React.FC<{
 // ══════════════════════════════════════════════════════════════════════════════
 // Main AdminDashboard
 // ══════════════════════════════════════════════════════════════════════════════
+
+// Detectar método de pago real (TropiPay se guarda como 'paypal' con prefijo TP-)
+const getPaymentLabel = (o: DbOrder): string => {
+  if (o.paypal_order_id?.startsWith('TP-')) return 'TropiPay';
+  if (o.payment_method === 'paypal') return 'PayPal';
+  return 'WhatsApp';
+};
+const getPaymentStyle = (o: DbOrder): React.CSSProperties => {
+  const label = getPaymentLabel(o);
+  if (label === 'TropiPay') return { backgroundColor: 'rgba(0,107,125,0.12)', color: '#006B7D' };
+  if (label === 'PayPal')   return { backgroundColor: 'rgba(0,112,186,0.12)', color: '#0070BA' };
+  return { backgroundColor: 'rgba(37,211,102,0.12)', color: '#15803d' };
+};
+
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   const [section, setSection] = useState<Section>('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -810,7 +824,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                             <TD><span className="font-medium max-w-[110px] block truncate">{o.customer_name}</span></TD>
                             <TD><span className="text-xs">{o.customer_phone}</span></TD>
                             <TD><span className="font-semibold" style={{ color: '#9b4500' }}>${Number(o.total).toLocaleString('en-US', {minimumFractionDigits:2,maximumFractionDigits:2})}</span></TD>
-                            <TD><span className="px-2 py-1 rounded-full text-xs font-semibold" style={{ backgroundColor: o.payment_method === 'paypal' ? 'rgba(0,112,186,0.12)' : 'rgba(37,211,102,0.12)', color: o.payment_method === 'paypal' ? '#0070BA' : '#15803d' }}>{o.payment_method === 'paypal' ? 'PayPal' : 'WhatsApp'}</span></TD>
+                            <TD><span className="px-2 py-1 rounded-full text-xs font-semibold" style={{ ...getPaymentStyle(o) }}>{getPaymentLabel(o)}</span></TD>
                             <TD>
                               <select value={o.status} onChange={e => updateOrderStatus(o.id, e.target.value)}
                                 className="rounded-lg px-2 py-1 text-xs font-semibold cursor-pointer border-none"
@@ -867,8 +881,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                     </div>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <span className="px-2 py-1 rounded-full text-[10px] font-semibold" style={{ backgroundColor: o.payment_method === 'paypal' ? 'rgba(0,112,186,0.12)' : 'rgba(37,211,102,0.12)', color: o.payment_method === 'paypal' ? '#0070BA' : '#15803d' }}>
-                          {o.payment_method === 'paypal' ? 'PayPal' : 'WhatsApp'}
+                        <span className="px-2 py-1 rounded-full text-[10px] font-semibold" style={{ ...getPaymentStyle(o) }}>
+                          {getPaymentLabel(o)}
                         </span>
                         <span className="text-xs" style={{ color: '#707974' }}>{new Date(o.created_at).toLocaleDateString('es-ES')}</span>
                       </div>

@@ -168,13 +168,17 @@ export const ShoppingCart: React.FC<ShoppingCartProps> = ({ navigate }) => {
   const saveOrder = async (method: PaymentMethod, tropipayRef?: string) => {
     try {
       const orderNumber = `AMA-${Date.now().toString().slice(-8)}`;
+      // payment_method: el check constraint de Supabase solo acepta 'whatsapp'|'paypal'
+      // hasta que se ejecute supabase_fix.sql. Usamos 'paypal' como workaround temporal
+      // y diferenciamos TropiPay por el campo paypal_order_id que comienza con "TP-"
+      const dbPaymentMethod = method === 'tropipay' ? 'paypal' : 'whatsapp';
       const { data: order, error } = await supabase.from('orders').insert({
         order_number: orderNumber, customer_name: name.trim(), customer_phone: phone.trim(),
         delivery_address: address.trim(), notes: notes.trim() || null,
         subtotal: total, total,
-        status: method === 'tropipay' ? 'awaiting_payment' : 'pending',
-        payment_method: method, // 'whatsapp' | 'tropipay' — constraint actualizado en supabase_fix.sql
-        paypal_order_id: tropipayRef || null,
+        status: method === 'tropipay' ? 'pending' : 'pending',
+        payment_method: dbPaymentMethod,
+        paypal_order_id: method === 'tropipay' ? `TP-${orderNumber}` : (tropipayRef || null),
         gps_lat: coords.lat, gps_lng: coords.lng,
       }).select().single();
       if (error) throw error;
@@ -188,7 +192,7 @@ export const ShoppingCart: React.FC<ShoppingCartProps> = ({ navigate }) => {
         );
       }
 
-      // Notificar por email a los admins (no bloqueante)
+      // Notificar por email a los admins (no bloqueante — no afecta el flujo del usuario)
       fetch('/api/notify-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -212,7 +216,10 @@ export const ShoppingCart: React.FC<ShoppingCartProps> = ({ navigate }) => {
       }).catch(e => console.warn('[notify-order] failed silently:', e));
 
       return orderNumber;
-    } catch { return `AMA-${Date.now().toString().slice(-8)}`; }
+    } catch (err) {
+      console.error('[saveOrder] error:', err);
+      return `AMA-${Date.now().toString().slice(-8)}`;
+    }
   };
 
   const sendWhatsApp = (method: PaymentMethod, orderNumber: string, extra?: string) => {

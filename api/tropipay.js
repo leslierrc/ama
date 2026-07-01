@@ -4,8 +4,7 @@
  * Genera un enlace de pago TropiPay de forma segura en el servidor.
  * Las credenciales (client_id / client_secret) NUNCA van al browser.
  *
- * Replicado del patrón de petshop (pawnova-store).
- * Docs: https://doc.tropipay.com/docs/basics/create-paymentcards
+ * Docs oficiales: https://doc.tropipay.com/docs/basics/create-paymentcards
  *
  * ── Variables de entorno en Vercel Dashboard → Settings → Environment Variables ──
  *   TROPIPAY_CLIENT_ID     = tu client_id de TropiPay
@@ -43,7 +42,6 @@ async function getAccessToken() {
 }
 
 export default async function handler(req, res) {
-  // CORS
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -76,18 +74,37 @@ export default async function handler(req, res) {
     }
 
     // ── MODO REAL ──────────────────────────────────────────────────────────
-
-    // 1. OAuth token
     const accessToken = await getAccessToken();
 
-    // 2. Objeto client — en petshop pasaban null si no estaban TODOS los datos.
-    // Como en AMA no pedimos el email ni el dateOfBirth, pasar datos falsos como 'cliente@ama.cu'
-    // provoca errores de seguridad en TropiPay ("Card credit cashin limit exceded" o bloqueos).
-    // Al pasar null, TropiPay se encarga de pedirle los datos (email, etc.) al cliente de forma segura.
+    // amount en centavos según doc: 10.55 EUR → 1055
+    const amountCents = Math.round(amount * 100);
+
+    // client: pasar null para que TropiPay pida los datos al cliente en su página.
+    // Según doc: "pass null to let TropiPay request the client data in the payment card"
+    // No pasar datos incompletos — causa errores de validación.
     const clientData = null;
 
-    // 3. Crear enlace de pago (amount en centavos)
-    const amountCents = Math.round(amount * 100);
+    const payload = {
+      reference:       orderId,
+      concept:         `AMA Store – Pedido #${orderId}`,
+      favorite:        false,
+      description:     description ?? `Pedido AMA #${orderId}`,
+      amount:          amountCents,
+      currency:        "EUR",        // EUR es la moneda base de TropiPay
+      singleUse:       true,
+      reasonId:        4,
+      expirationDays:  1,
+      lang:            "es",
+      urlSuccess:      `${APP_URL}/?payment=success&order=${orderId}`,
+      urlFailed:       `${APP_URL}/?payment=failed&order=${orderId}`,
+      urlNotification: `${APP_URL}/api/payment-webhook`,
+      // directPayment: true activa flujo que requiere cuenta Business y genera
+      // "Card credit cashin limit exceded" en cuentas personales. Se omite.
+      paymentMethods:  ["EXT", "TPP"],
+      client:          clientData,
+    };
+
+    console.log("[tropipay] payload:", JSON.stringify({ ...payload, amount: amountCents }));
 
     const payRes = await fetch(`${TROPIPAY_API}/paymentcards`, {
       method: "POST",
@@ -95,37 +112,21 @@ export default async function handler(req, res) {
         "Content-Type":  "application/json",
         "Authorization": `Bearer ${accessToken}`,
       },
-      body: JSON.stringify({
-        reference:       orderId,
-        concept:         `AMA Store – Pedido #${orderId}`,
-        favorite:        false,
-        description:     description ?? `Pedido AMA #${orderId}`,
-        amount:          amountCents,
-        currency:        "EUR", // Cambiado a EUR para evitar "Card credit cashin limit exceded" por limites en USD
-        singleUse:       true,
-        reasonId:        4,
-        expirationDays:  1,
-        lang:            "es",
-        urlSuccess:      `${APP_URL}/?payment=success&order=${orderId}`,
-        urlFailed:       `${APP_URL}/?payment=failed&order=${orderId}`,
-        urlNotification: `${APP_URL}/api/payment-webhook`,
-        directPayment:   true,
-        paymentMethods:  ["EXT", "TPP"],
-        client:          clientData,
-      }),
+      body: JSON.stringify(payload),
     });
 
+    const payData = await payRes.json();
+
     if (!payRes.ok) {
-      const errData = await payRes.json().catch(() => ({}));
-      console.error("[tropipay] paymentcards error:", JSON.stringify(errData));
-      const msg = errData?.error?.message ?? `HTTP ${payRes.status}`;
+      console.error("[tropipay] paymentcards error:", JSON.stringify(payData));
+      const msg = payData?.error?.message ?? payData?.message ?? `HTTP ${payRes.status}`;
       return res.status(502).json({ error: `TropiPay error: ${msg}` });
     }
 
-    const payData = await payRes.json();
     const paymentUrl = payData.shortUrl ?? payData.paymentUrl ?? payData.url;
 
     if (!paymentUrl) {
+      console.error("[tropipay] no paymentUrl in response:", JSON.stringify(payData));
       return res.status(502).json({ error: "TropiPay no devolvió URL de pago" });
     }
 
