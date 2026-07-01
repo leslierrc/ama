@@ -21,6 +21,7 @@ interface ProductDetail {
   category: string;
   badge?: string | null;
   isCombo: boolean;
+  comboItems?: { name: string; quantity: number; unit: string }[];
 }
 
 export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ navigate, selectedProduct }) => {
@@ -42,28 +43,56 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ navigate, 
       setError('');
       try {
         if (isCombo) {
-          // Fetch combo details
-          const { data, error: err } = await supabase
+          // Paso 1: cargar el combo
+          const { data: comboData, error: err } = await supabase
             .from('combos')
             .select('id, name, description, price, original_price, image_url, active')
             .eq('id', targetId)
             .single();
           if (err) throw err;
-          if (data) {
-            setProduct({
-              id: data.id,
-              name: data.name,
-              description: data.description || '',
-              price: data.price,
-              original_price: data.original_price,
-              image_url: data.image_url || '',
-              category: 'Combos',
-              badge: data.original_price && data.original_price > data.price ? 'OFERTA' : null,
-              isCombo: true,
-            });
-          } else {
-            throw new Error('Combo no encontrado');
+          if (!comboData) throw new Error('Combo no encontrado');
+
+          // Paso 2: cargar los items del combo con sus productos
+          // Usamos dos queries separadas para máxima compatibilidad con RLS
+          const { data: ciData, error: ciErr } = await supabase
+            .from('combo_items')
+            .select('quantity, product_id')
+            .eq('combo_id', targetId);
+
+          if (ciErr) console.warn('combo_items error:', ciErr.message);
+
+          let items: { name: string; quantity: number; unit: string }[] = [];
+
+          if (ciData && ciData.length > 0) {
+            // Traer los nombres de los productos en una sola query
+            const productIds = ciData.map((ci: any) => ci.product_id);
+            const { data: prodsData } = await supabase
+              .from('products')
+              .select('id, name')
+              .in('id', productIds);
+
+            const prodMap: Record<string, string> = {};
+            (prodsData || []).forEach((p: any) => { prodMap[p.id] = p.name; });
+
+            items = ciData.map((ci: any) => ({
+              name: prodMap[ci.product_id] || 'Producto',
+              quantity: ci.quantity,
+              unit: 'u',
+            }));
           }
+
+          setProduct({
+            id: comboData.id,
+            name: comboData.name,
+            description: comboData.description || '',
+            price: comboData.price,
+            original_price: comboData.original_price,
+            image_url: comboData.image_url || '',
+            category: 'Combos',
+            badge: comboData.original_price && comboData.original_price > comboData.price ? 'OFERTA' : null,
+            isCombo: true,
+            comboItems: items,
+          });
         } else {
           // Fetch product details
           const { data, error: err } = await supabase
@@ -151,6 +180,12 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ navigate, 
       price: product.price,
       image: product.image_url,
       category: product.category as FilterCategory,
+      isCombo: product.isCombo,
+      comboItems: product.comboItems?.map(ci => ({
+        name: ci.name,
+        quantity: ci.quantity,
+        price: 0,
+      })),
     });
     navigate?.('cart');
   };
@@ -388,10 +423,7 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ navigate, 
                   border: '1px solid var(--color-outline-variant)',
                 }}
               >
-                <span
-                  className="material-symbols-outlined shrink-0"
-                  style={{ color: 'var(--color-primary)' }}
-                >
+                <span className="material-symbols-outlined shrink-0" style={{ color: 'var(--color-primary)' }}>
                   local_shipping
                 </span>
                 <p className="text-sm" style={{ color: 'var(--color-on-surface-variant)' }}>
@@ -401,6 +433,51 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ navigate, 
                   en menos de 24 horas
                 </p>
               </div>
+
+              {/* Combo items preview — shown inline for combos */}
+              {product.isCombo && (() => {
+                const hasItems = product.comboItems && product.comboItems.length > 0;
+                const raw = product.description || '';
+                const lines = raw.split(/[,\n]/).map(s => s.trim()).filter(s => s.length > 1);
+                const displayItems: { label: string; qty?: number }[] = hasItems
+                  ? product.comboItems!.map(ci => ({ label: ci.name, qty: ci.quantity }))
+                  : lines.length > 1
+                    ? lines.map(l => ({ label: l }))
+                    : [];
+                if (displayItems.length === 0) return null;
+                return (
+                  <div className="rounded-xl overflow-hidden"
+                    style={{ border: '1px solid var(--color-outline-variant)' }}>
+                    <div className="px-4 py-3 flex items-center gap-2"
+                      style={{ backgroundColor: 'var(--color-surface-container)', borderBottom: '1px solid var(--color-outline-variant)' }}>
+                      <span className="material-symbols-outlined text-[18px]" style={{ color: 'var(--color-primary)' }}>checklist</span>
+                      <span className="label-caps text-[11px]" style={{ color: 'var(--color-primary)' }}>
+                        Incluye {displayItems.length} producto{displayItems.length > 1 ? 's' : ''}
+                      </span>
+                    </div>
+                    {displayItems.map((ci, i) => (
+                      <div key={i} className="flex items-center gap-3 px-4 py-2.5 border-b last:border-0"
+                        style={{ backgroundColor: 'var(--color-surface-container-lowest)', borderColor: 'var(--color-outline-variant)' }}>
+                        {ci.qty !== undefined && (
+                          <span className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
+                            style={{ backgroundColor: 'rgba(0,53,39,0.1)', color: 'var(--color-primary)' }}>
+                            {ci.qty}
+                          </span>
+                        )}
+                        {ci.qty === undefined && <span className="text-sm shrink-0">🔹</span>}
+                        <span className="text-sm" style={{ color: 'var(--color-on-surface)' }}>{ci.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+
+              {/* Description for non-combo or combos without items in DB */}
+              {product.description && !(product.isCombo && product.comboItems && product.comboItems.length > 0) && (
+                <p className="text-sm leading-relaxed" style={{ color: 'var(--color-on-surface-variant)' }}>
+                  {product.description}
+                </p>
+              )}
 
               {/* CTAs */}
               <div className="flex flex-col sm:flex-row gap-4">
@@ -436,43 +513,104 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ navigate, 
           </div>
         </section>
 
-        {/* Specs */}
+        {/* Specs / Combo contents */}
         <section
           className="py-16 px-5 md:px-16"
           style={{ backgroundColor: 'var(--color-surface-container-low)' }}
         >
           <div className="max-w-[1280px] mx-auto">
-            <h2
-              className="font-display text-2xl font-semibold mb-8"
-              style={{ color: 'var(--color-primary)' }}
-            >
-              Especificaciones técnicas
-            </h2>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-              {getSpecs().map(spec => (
-                <div
-                  key={spec.id}
-                  className="rounded-xl p-5 ambient-shadow"
-                  style={{
-                    backgroundColor: 'var(--color-surface-container-lowest)',
-                    border: '1px solid var(--color-outline-variant)',
-                  }}
-                >
-                  <p
-                    className="label-caps mb-1"
-                    style={{ color: 'var(--color-on-surface-variant)' }}
-                  >
-                    {spec.label}
-                  </p>
-                  <p
-                    className="text-lg font-semibold"
-                    style={{ color: 'var(--color-on-surface)' }}
-                  >
-                    {spec.value}
-                  </p>
+            {product.isCombo ? (
+              <>
+                <h2 className="font-display text-2xl font-semibold mb-2" style={{ color: 'var(--color-primary)' }}>
+                  ¿Qué incluye este combo?
+                </h2>
+                <p className="text-sm mb-8" style={{ color: 'var(--color-on-surface-variant)' }}>
+                  Todos los productos están frescos y listos para entregar en menos de 24h.
+                </p>
+
+                {product.comboItems && product.comboItems.length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {product.comboItems.map((ci, i) => (
+                      <div key={i} className="flex items-center gap-4 p-4 rounded-xl"
+                        style={{ backgroundColor: 'var(--color-surface-container-lowest)', border: '1px solid var(--color-outline-variant)' }}>
+                        <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 text-base font-bold"
+                          style={{ backgroundColor: 'rgba(0,53,39,0.08)', color: 'var(--color-primary)' }}>
+                          {ci.quantity}
+                        </div>
+                        <span className="font-medium text-sm" style={{ color: 'var(--color-on-surface)' }}>
+                          {ci.name}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (() => {
+                  // Parsear descripción: cada coma o línea nueva = un producto del combo
+                  const raw = product.description || '';
+                  const lines = raw
+                    .split(/[,\n]/)
+                    .map(s => s.trim())
+                    .filter(s => s.length > 1);
+                  if (lines.length > 1) {
+                    return (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {lines.map((line, i) => (
+                          <div key={i} className="flex items-center gap-3 p-4 rounded-xl"
+                            style={{ backgroundColor: 'var(--color-surface-container-lowest)', border: '1px solid var(--color-outline-variant)' }}>
+                            <span className="text-lg">🔹</span>
+                            <span className="font-medium text-sm" style={{ color: 'var(--color-on-surface)' }}>{line}</span>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  }
+                  return (
+                    <div className="rounded-xl p-6"
+                      style={{ backgroundColor: 'var(--color-surface-container-lowest)', border: '1px solid var(--color-outline-variant)' }}>
+                      <p className="text-base leading-relaxed"
+                        style={{ color: 'var(--color-on-surface-variant)' }}>
+                        {raw || 'Combo con selección de productos frescos del mercado.'}
+                      </p>
+                    </div>
+                  );
+                })()}
+
+                {/* Stats del combo */}
+                <div className="grid grid-cols-3 gap-4 mt-8">
+                  {[
+                    { icon: 'local_shipping', label: 'Entrega', value: 'Menos de 24h' },
+                    { icon: 'verified',       label: 'Calidad', value: 'Garantizada' },
+                    { icon: 'savings',        label: 'Ahorro',  value: 'Vs. precio unitario' },
+                  ].map(s => (
+                    <div key={s.label} className="rounded-xl p-4 text-center"
+                      style={{ backgroundColor: 'var(--color-surface-container-lowest)', border: '1px solid var(--color-outline-variant)' }}>
+                      <span className="material-symbols-outlined text-[22px] mb-1 block"
+                        style={{ color: 'var(--color-primary)' }}>{s.icon}</span>
+                      <p className="label-caps mb-0.5" style={{ color: 'var(--color-on-surface-variant)' }}>{s.label}</p>
+                      <p className="text-sm font-semibold" style={{ color: 'var(--color-on-surface)' }}>{s.value}</p>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              </>
+            ) : (
+              <>
+                <h2 className="font-display text-2xl font-semibold mb-8" style={{ color: 'var(--color-primary)' }}>
+                  Especificaciones técnicas
+                </h2>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                  {getSpecs().map(spec => (
+                    <div key={spec.id} className="rounded-xl p-5 ambient-shadow"
+                      style={{ backgroundColor: 'var(--color-surface-container-lowest)', border: '1px solid var(--color-outline-variant)' }}>
+                      <p className="label-caps mb-1" style={{ color: 'var(--color-on-surface-variant)' }}>
+                        {spec.label}
+                      </p>
+                      <p className="text-lg font-semibold" style={{ color: 'var(--color-on-surface)' }}>
+                        {spec.value}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         </section>
 

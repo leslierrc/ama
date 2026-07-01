@@ -284,6 +284,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
 
   const [products, setProducts] = useState<DbProduct[]>([]);
   const [combos, setCombos] = useState<DbCombo[]>([]);
+  const [comboItemsMap, setComboItemsMap] = useState<Record<string, { name: string; quantity: number }[]>>({});
   const [orders, setOrders] = useState<DbOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ totalSales: 0, ordersToday: 0, activeProducts: 0, pendingOrders: 0 });
@@ -318,6 +319,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
       setProducts(prods || []);
       setCombos(combosData || []);
       setOrders(ordersData || []);
+
+      // Cargar combo_items por separado para evitar problemas de RLS con FK joins
+      const { data: ciData } = await supabase
+        .from('combo_items')
+        .select('combo_id, quantity, product_id');
+
+      if (ciData && ciData.length > 0 && prods) {
+        const prodMap: Record<string, string> = {};
+        prods.forEach((p: DbProduct) => { prodMap[p.id] = p.name; });
+
+        const ciMap: Record<string, { name: string; quantity: number }[]> = {};
+        ciData.forEach((ci: any) => {
+          if (!ciMap[ci.combo_id]) ciMap[ci.combo_id] = [];
+          ciMap[ci.combo_id].push({ name: prodMap[ci.product_id] || '—', quantity: ci.quantity });
+        });
+        setComboItemsMap(ciMap);
+      } else {
+        setComboItemsMap({});
+      }
+
       const s: Record<string, string> = {};
       (settingsData || []).forEach((row: DbSettings) => { s[row.key] = row.value; });
       setSettingsForm(s);
@@ -371,17 +392,28 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   const openComboModal = async (c?: DbCombo) => {
     setEditingCombo(c ? { ...c } : { active: true, price: 0, original_price: 0, image_url: '' });
     if (c) {
-      // Load existing combo items
-      const { data } = await supabase
+      // Cargar combo_items por separado para evitar problemas con FK joins
+      const { data: ciData } = await supabase
         .from('combo_items')
-        .select('*, product:products(id, name, price)')
+        .select('product_id, quantity')
         .eq('combo_id', c.id);
-      if (data) {
-        setComboItems(data.map((ci: DbComboItem & { product: DbProduct }) => ({
+
+      if (ciData && ciData.length > 0) {
+        // Traer nombres de productos
+        const productIds = ciData.map((ci: any) => ci.product_id);
+        const { data: prodsData } = await supabase
+          .from('products')
+          .select('id, name, price')
+          .in('id', productIds);
+
+        const prodMap: Record<string, { name: string; price: number }> = {};
+        (prodsData || []).forEach((p: any) => { prodMap[p.id] = { name: p.name, price: p.price }; });
+
+        setComboItems(ciData.map((ci: any) => ({
           product_id: ci.product_id,
           quantity: ci.quantity,
-          name: ci.product?.name || '',
-          price: ci.product?.price || 0,
+          name: prodMap[ci.product_id]?.name || '—',
+          price: prodMap[ci.product_id]?.price || 0,
         })));
       } else {
         setComboItems([]);
@@ -1022,11 +1054,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               <TextInput value={editingCombo.name || ''} onChange={v => setEditingCombo(c => ({ ...c, name: v }))} placeholder="Nombre del combo" />
             </Field>
 
-            <Field label="Descripción">
+            <Field label="Descripción breve">
               <textarea value={editingCombo.description || ''} onChange={e => setEditingCombo(c => ({ ...c, description: e.target.value }))} rows={2}
                 style={{ ...inp, resize: 'none' }}
                 onFocus={e => (e.currentTarget.style.borderColor = '#003527')}
                 onBlur={e => (e.currentTarget.style.borderColor = '#bfc9c3')} />
+              <p className="text-xs mt-1" style={{ color: '#9b4500' }}>
+                💡 Si no agregas productos abajo, escribe aquí los contenidos separados por coma:<br />
+                Ej: <em>1 pollo, 3 lb arroz, 2 lb frijoles, 1 botella aceite</em>
+              </p>
             </Field>
 
             <Field label="Productos incluidos en el combo">
@@ -1092,13 +1128,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               <button onClick={() => { setShowComboModal(false); setEditingCombo(null); setComboItems([]); }} className="flex-1 py-3 rounded-xl text-sm font-semibold border" style={{ borderColor: '#bfc9c3', color: '#404944' }}>Cancelar</button>
               <button
                 onClick={saveCombo}
-                disabled={comboItems.length < 2 || !editingCombo.name || !Number(editingCombo.price)}
+                disabled={!editingCombo.name || !Number(editingCombo.price)}
                 className="flex-1 py-3 rounded-xl text-sm font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-90"
                 style={{ backgroundColor: '#003527', color: 'white' }}
               >
-                {comboItems.length < 2
-                  ? `Agrega ${2 - comboItems.length} producto${2 - comboItems.length > 1 ? 's' : ''} más`
-                  : !editingCombo.name
+                {!editingCombo.name
                   ? 'Escribe el nombre'
                   : !Number(editingCombo.price)
                   ? 'Define el precio de venta'
