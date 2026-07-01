@@ -218,7 +218,8 @@ export const ShoppingCart: React.FC<ShoppingCartProps> = ({ navigate }) => {
       return orderNumber;
     } catch (err) {
       console.error('[saveOrder] error:', err);
-      return `AMA-${Date.now().toString().slice(-8)}`;
+      // Re-throw para que el caller pueda mostrar el error al usuario
+      throw err;
     }
   };
 
