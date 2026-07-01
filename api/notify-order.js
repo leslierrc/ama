@@ -23,6 +23,19 @@ const ADMIN_EMAILS = [
 const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || "AMA Store <onboarding@resend.dev>";
 const WA_NUMBER  = "5355542936";
 
+// Si el remitente es onboarding@resend.dev (sin dominio verificado),
+// Resend solo permite enviar al dueño de la cuenta.
+// En ese caso enviamos solo a leslierrodriguezcontrera25@gmail.com
+// (el email registrado en Resend). Una vez verificado un dominio,
+// se envía a todos los admins automáticamente.
+function getRecipientsForSender(fromEmail) {
+  const isUnverifiedDomain = fromEmail.includes("onboarding@resend.dev");
+  if (isUnverifiedDomain) {
+    return ["leslierrodriguezcontrera25@gmail.com"];
+  }
+  return ADMIN_EMAILS;
+}
+
 function buildOrderHtml(order) {
   const { orderNumber, customerName, customerPhone, customerAddress, notes, paymentMethod, total, items, gpsLat, gpsLng } = order;
 
@@ -176,6 +189,7 @@ export default async function handler(req, res) {
 
     const html = buildOrderHtml(order);
     const subject = `🛒 Nuevo pedido AMA #${order.orderNumber} — ${order.customerName} ($${Number(order.total).toLocaleString("en-US", { minimumFractionDigits: 2 })})`;
+    const recipients = getRecipientsForSender(FROM_EMAIL);
 
     // Enviar a todos los admins en un solo email (BCC)
     const emailRes = await fetch("https://api.resend.com/emails", {
@@ -186,7 +200,7 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         from:    FROM_EMAIL,
-        to:      ADMIN_EMAILS,
+        to:      recipients,
         subject,
         html,
         reply_to: "amacontrera93@gmail.com",

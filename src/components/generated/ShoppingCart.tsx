@@ -279,6 +279,27 @@ export const ShoppingCart: React.FC<ShoppingCartProps> = ({ navigate }) => {
     try {
       const orderNumber = await saveOrder('tropipay');
       const description = `Pedido AMA #${orderNumber} (${cart.length} producto${cart.length > 1 ? 's' : ''})`;
+
+      // Guardar datos del pedido en localStorage para recuperarlos al volver de TropiPay
+      const orderSnapshot = {
+        orderNumber,
+        customerName:    name.trim(),
+        customerPhone:   phone.trim(),
+        customerAddress: address.trim(),
+        notes:           notes.trim(),
+        gpsLat:          coords.lat,
+        gpsLng:          coords.lng,
+        total,
+        items: cart.map(item => ({
+          title:      item.title,
+          quantity:   item.quantity,
+          price:      item.price,
+          isCombo:    item.isCombo,
+          comboItems: item.comboItems || [],
+        })),
+      };
+      localStorage.setItem('ama_pending_tropipay_order', JSON.stringify(orderSnapshot));
+
       const res = await fetch(TROPIPAY_FUNCTION_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -295,6 +316,7 @@ export const ShoppingCart: React.FC<ShoppingCartProps> = ({ navigate }) => {
       if (!res.ok || !data.paymentUrl) {
         throw new Error(data.error || 'No se pudo crear el enlace de pago');
       }
+      clearCart();
       window.location.href = data.paymentUrl;
     } catch (err: any) {
       setFormError(err.message || 'Error al conectar con TropiPay. Intenta de nuevo.');
@@ -648,15 +670,69 @@ export const ShoppingCart: React.FC<ShoppingCartProps> = ({ navigate }) => {
                       Confirmar por WhatsApp
                     </button>
                   ) : (
-                    <button onClick={handleTropipayCheckout} disabled={cart.length === 0 || tropipayLoading}
-                      className="w-full flex items-center justify-center gap-2 py-4 rounded-xl label-caps font-bold transition-all active:scale-95 hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
-                      style={{ backgroundColor: '#006B7D', color: 'white' }}>
-                      {tropipayLoading ? (
-                        <><div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'white', borderTopColor: 'transparent' }} /><span>Generando enlace...</span></>
-                      ) : (
-                        <><span className="material-symbols-outlined text-[20px]">open_in_new</span><span>Pagar con TropiPay</span></>
-                      )}
-                    </button>
+                    <div className="flex flex-col gap-2">
+                      <button onClick={handleTropipayCheckout} disabled={cart.length === 0 || tropipayLoading}
+                        className="w-full flex items-center justify-center gap-2 py-4 rounded-xl label-caps font-bold transition-all active:scale-95 hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
+                        style={{ backgroundColor: '#006B7D', color: 'white' }}>
+                        {tropipayLoading ? (
+                          <><div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'white', borderTopColor: 'transparent' }} /><span>Generando enlace...</span></>
+                        ) : (
+                          <><span className="material-symbols-outlined text-[20px]">open_in_new</span><span>Pagar con TropiPay</span></>
+                        )}
+                      </button>
+                      {/* Botón de prueba — simula el pago completo sin cobrar */}
+                      <button
+                        onClick={() => {
+                          if (!validateForm() || cart.length === 0) return;
+                          setTropipayLoading(true);
+                          saveOrder('tropipay').then(orderNumber => {
+                            fetch(TROPIPAY_FUNCTION_URL, {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                orderId: orderNumber,
+                                amount: total,
+                                description: `[TEST] Pedido AMA #${orderNumber}`,
+                                customerName: name.trim(),
+                                customerPhone: phone.trim(),
+                                customerAddress: address.trim(),
+                                simulate: true,
+                              }),
+                            })
+                            .then(r => r.json())
+                            .then(data => {
+                              if (data.paymentUrl) {
+                                const orderSnapshot = {
+                                  orderNumber,
+                                  customerName:    name.trim(),
+                                  customerPhone:   phone.trim(),
+                                  customerAddress: address.trim(),
+                                  notes:           notes.trim(),
+                                  gpsLat:          coords.lat,
+                                  gpsLng:          coords.lng,
+                                  total,
+                                  items: cart.map(item => ({
+                                    title: item.title, quantity: item.quantity,
+                                    price: item.price, isCombo: item.isCombo,
+                                    comboItems: item.comboItems || [],
+                                  })),
+                                };
+                                localStorage.setItem('ama_pending_tropipay_order', JSON.stringify(orderSnapshot));
+                                clearCart();
+                                window.location.href = data.paymentUrl;
+                              }
+                            })
+                            .catch(e => setFormError(String(e)))
+                            .finally(() => setTropipayLoading(false));
+                          });
+                        }}
+                        disabled={cart.length === 0 || tropipayLoading}
+                        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl label-caps text-xs font-bold transition-all active:scale-95 hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
+                        style={{ backgroundColor: 'transparent', color: '#707974', border: '1px dashed #bfc9c3' }}>
+                        <span className="material-symbols-outlined text-[16px]">science</span>
+                        Simular pago (prueba — sin cobrar)
+                      </button>
+                    </div>
                   )}
                 </div>
 

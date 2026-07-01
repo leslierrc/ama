@@ -63,8 +63,9 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "orderId y amount son requeridos" });
     }
 
-    // ── MODO SIMULADO: desarrollo local o sin credenciales ─────────────────
-    if (!hasCredentials || isDev) {
+    // ── MODO SIMULADO: desarrollo local, sin credenciales, o simulate=true ──
+    const simulate = req.body.simulate === true;
+    if (!hasCredentials || isDev || simulate) {
       const mockUrl = `${APP_URL}/?payment=success&order=${orderId}&simulated=true`;
       return res.status(200).json({
         paymentUrl: mockUrl,
