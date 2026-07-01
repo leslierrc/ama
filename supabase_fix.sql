@@ -1,9 +1,10 @@
 -- ══════════════════════════════════════════════════════════════
---  AMA Store — SQL de correcciones
---  Ejecuta esto en: Supabase Dashboard → SQL Editor → Run
+--  AMA Store — Fix completo
+--  Pega TODO esto en: Supabase Dashboard → SQL Editor → Run
 -- ══════════════════════════════════════════════════════════════
 
--- ── 1. Permitir 'tropipay' como método de pago ─────────────────
+-- ── 1. Arreglar check constraint payment_method ────────────────
+-- Agrega 'tropipay' como valor válido
 alter table orders
   drop constraint if exists orders_payment_method_check;
 
@@ -11,7 +12,8 @@ alter table orders
   add constraint orders_payment_method_check
   check (payment_method in ('whatsapp', 'paypal', 'tropipay'));
 
--- ── 2. Permitir 'awaiting_payment' como estado ─────────────────
+-- ── 2. Arreglar check constraint status ───────────────────────
+-- Agrega 'awaiting_payment' para pagos TropiPay pendientes
 alter table orders
   drop constraint if exists orders_status_check;
 
@@ -19,27 +21,34 @@ alter table orders
   add constraint orders_status_check
   check (status in ('pending', 'awaiting_payment', 'paid', 'processing', 'delivered', 'cancelled'));
 
--- ── 3. Confirmar que combo_items tiene lectura pública ──────────
-do $$
-begin
-  if not exists (
-    select 1 from pg_policies
-    where tablename = 'combo_items'
-    and policyname = 'Public read combo_items'
-  ) then
-    create policy "Public read combo_items"
-      on combo_items for select using (true);
-  end if;
-end $$;
+-- ── 3. Garantizar que las políticas RLS permiten insert público ─
+-- Primero eliminar si existen (para evitar conflictos)
+drop policy if exists "Public insert orders" on orders;
+drop policy if exists "Public insert order_items" on order_items;
 
--- ── 4. Diagnóstico: combos y cuántos productos tienen ──────────
+-- Recrear con check explícito
+create policy "Public insert orders"
+  on orders for insert
+  with check (true);
+
+create policy "Public insert order_items"
+  on order_items for insert
+  with check (true);
+
+-- ── 4. Confirmar lectura pública de combo_items ────────────────
+drop policy if exists "Public read combo_items" on combo_items;
+
+create policy "Public read combo_items"
+  on combo_items for select
+  using (true);
+
+-- ── 5. Verificación final — debe mostrar las políticas activas ─
 select
-  c.id        as combo_id,
-  c.name      as combo_name,
-  c.price,
-  c.active,
-  count(ci.id) as total_productos
-from combos c
-left join combo_items ci on ci.combo_id = c.id
-group by c.id, c.name, c.price, c.active
-order by c.created_at desc;
+  tablename,
+  policyname,
+  cmd,
+  qual,
+  with_check
+from pg_policies
+where tablename in ('orders', 'order_items', 'combo_items')
+order by tablename, policyname;

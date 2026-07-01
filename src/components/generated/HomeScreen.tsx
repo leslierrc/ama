@@ -547,7 +547,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigate }) => {
                       Cómo llegar
                     </a>
                     <a
-                      href="https://wa.me/5355542936"
+                      href="https://wa.me/5351365501"
                       target="_blank" rel="noopener noreferrer"
                       className="flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-bold text-white transition-all"
                       style={{ backgroundColor: '#25D366' }}

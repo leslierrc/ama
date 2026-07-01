@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-const WA_NUMBER = import.meta.env.VITE_WHATSAPP_NUMBER || '5355542936';
+const WA_NUMBER = import.meta.env.VITE_WHATSAPP_NUMBER || '5351365501';
 
 export const WhatsAppButton: React.FC = () => {
   const [hovered, setHovered] = useState(false);

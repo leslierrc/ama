@@ -159,7 +159,7 @@ export const AboutSection: React.FC = () => {
         {/* ── WhatsApp CTA ── */}
         <div className="flex justify-center">
           <a
-            href="https://wa.me/5355542936"
+            href="https://wa.me/5351365501"
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-2 px-8 py-4 rounded-xl font-bold text-white transition-all"

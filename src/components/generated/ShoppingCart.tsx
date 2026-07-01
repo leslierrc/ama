@@ -8,7 +8,7 @@ import type { Page, FilterCategory } from '../../App';
 type PaymentMethod = 'whatsapp' | 'tropipay';
 interface ShoppingCartProps { navigate?: (page: Page, filter?: FilterCategory) => void; }
 
-const WA_NUMBER = import.meta.env.VITE_WHATSAPP_NUMBER || '5355542936';
+const WA_NUMBER = import.meta.env.VITE_WHATSAPP_NUMBER || '5351365501';
 const fmt = (n: number) =>
   `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 

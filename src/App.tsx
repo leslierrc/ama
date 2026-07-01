@@ -63,7 +63,7 @@ function PaymentResultScreen({
           {success ? 'Volver al inicio' : 'Reintentar pedido'}
         </button>
         {success && (
-          <a href={`https://wa.me/5355542936`} target="_blank" rel="noopener noreferrer"
+          <a href={`https://wa.me/5351365501`} target="_blank" rel="noopener noreferrer"
             className="px-8 py-4 rounded-xl font-bold transition-all active:scale-95"
             style={{ backgroundColor: '#25D366', color: 'white' }}>
             Confirmar por WhatsApp
