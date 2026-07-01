@@ -168,29 +168,31 @@ export const ShoppingCart: React.FC<ShoppingCartProps> = ({ navigate }) => {
   const saveOrder = async (method: PaymentMethod, tropipayRef?: string) => {
     try {
       const orderNumber = `AMA-${Date.now().toString().slice(-8)}`;
-      // payment_method: el check constraint de Supabase solo acepta 'whatsapp'|'paypal'
-      // hasta que se ejecute supabase_fix.sql. Usamos 'paypal' como workaround temporal
-      // y diferenciamos TropiPay por el campo paypal_order_id que comienza con "TP-"
       const dbPaymentMethod = method === 'tropipay' ? 'paypal' : 'whatsapp';
-      const { data: order, error } = await supabase.from('orders').insert({
+
+      // Generamos el UUID del lado del cliente para poder insertar order_items
+      // sin necesitar un SELECT posterior (que requiere permiso RLS adicional)
+      const orderId = crypto.randomUUID();
+
+      const { error } = await supabase.from('orders').insert({
+        id: orderId,
         order_number: orderNumber, customer_name: name.trim(), customer_phone: phone.trim(),
         delivery_address: address.trim(), notes: notes.trim() || null,
         subtotal: total, total,
-        status: method === 'tropipay' ? 'pending' : 'pending',
+        status: 'pending',
         payment_method: dbPaymentMethod,
         paypal_order_id: method === 'tropipay' ? `TP-${orderNumber}` : (tropipayRef || null),
         gps_lat: coords.lat, gps_lng: coords.lng,
-      }).select().single();
+      });
       if (error) throw error;
-      if (order) {
-        await supabase.from('order_items').insert(
-          cart.map(item => ({
-            order_id: order.id, product_name: item.title,
-            quantity: item.quantity, unit_price: item.price,
-            total_price: item.price * item.quantity,
-          }))
-        );
-      }
+
+      await supabase.from('order_items').insert(
+        cart.map(item => ({
+          order_id: orderId, product_name: item.title,
+          quantity: item.quantity, unit_price: item.price,
+          total_price: item.price * item.quantity,
+        }))
+      );
 
       // Notificar por email a los admins (no bloqueante — no afecta el flujo del usuario)
       fetch('/api/notify-order', {
@@ -721,8 +723,8 @@ export const ShoppingCart: React.FC<ShoppingCartProps> = ({ navigate }) => {
                             }));
                             clearCart();
                             window.location.href = data.paymentUrl;
-                          } catch (err: any) {
-                            setFormError(err.message || 'Error en la simulación');
+                          } catch (err: unknown) {
+                            setFormError(err instanceof Error ? err.message : 'Error en la simulación');
                           } finally {
                             setTropipayLoading(false);
                           }
