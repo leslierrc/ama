@@ -683,11 +683,13 @@ export const ShoppingCart: React.FC<ShoppingCartProps> = ({ navigate }) => {
                       </button>
                       {/* Botón de prueba — simula el pago completo sin cobrar */}
                       <button
-                        onClick={() => {
+                        onClick={async () => {
                           if (!validateForm() || cart.length === 0) return;
                           setTropipayLoading(true);
-                          saveOrder('tropipay').then(orderNumber => {
-                            fetch(TROPIPAY_FUNCTION_URL, {
+                          setFormError('');
+                          try {
+                            const orderNumber = await saveOrder('tropipay');
+                            const res = await fetch(TROPIPAY_FUNCTION_URL, {
                               method: 'POST',
                               headers: { 'Content-Type': 'application/json' },
                               body: JSON.stringify({
@@ -699,33 +701,31 @@ export const ShoppingCart: React.FC<ShoppingCartProps> = ({ navigate }) => {
                                 customerAddress: address.trim(),
                                 simulate: true,
                               }),
-                            })
-                            .then(r => r.json())
-                            .then(data => {
-                              if (data.paymentUrl) {
-                                const orderSnapshot = {
-                                  orderNumber,
-                                  customerName:    name.trim(),
-                                  customerPhone:   phone.trim(),
-                                  customerAddress: address.trim(),
-                                  notes:           notes.trim(),
-                                  gpsLat:          coords.lat,
-                                  gpsLng:          coords.lng,
-                                  total,
-                                  items: cart.map(item => ({
-                                    title: item.title, quantity: item.quantity,
-                                    price: item.price, isCombo: item.isCombo,
-                                    comboItems: item.comboItems || [],
-                                  })),
-                                };
-                                localStorage.setItem('ama_pending_tropipay_order', JSON.stringify(orderSnapshot));
-                                clearCart();
-                                window.location.href = data.paymentUrl;
-                              }
-                            })
-                            .catch(e => setFormError(String(e)))
-                            .finally(() => setTropipayLoading(false));
-                          });
+                            });
+                            const data = await res.json();
+                            if (!data.paymentUrl) throw new Error(data.error || 'Sin URL de prueba');
+                            localStorage.setItem('ama_pending_tropipay_order', JSON.stringify({
+                              orderNumber,
+                              customerName:    name.trim(),
+                              customerPhone:   phone.trim(),
+                              customerAddress: address.trim(),
+                              notes:           notes.trim(),
+                              gpsLat:          coords.lat,
+                              gpsLng:          coords.lng,
+                              total,
+                              items: cart.map(item => ({
+                                title: item.title, quantity: item.quantity,
+                                price: item.price, isCombo: item.isCombo,
+                                comboItems: item.comboItems || [],
+                              })),
+                            }));
+                            clearCart();
+                            window.location.href = data.paymentUrl;
+                          } catch (err: any) {
+                            setFormError(err.message || 'Error en la simulación');
+                          } finally {
+                            setTropipayLoading(false);
+                          }
                         }}
                         disabled={cart.length === 0 || tropipayLoading}
                         className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl label-caps text-xs font-bold transition-all active:scale-95 hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
