@@ -79,7 +79,7 @@ create table if not exists settings (
 
 -- Default settings
 insert into settings (key, value) values
-  ('whatsapp_number', '5355542936'),
+  ('whatsapp_number', '5351365501'),
   ('business_name', 'AMA Store'),
   ('banner_text', 'Domicilios rápidos en menos de 24 horas 🏎️'),
   ('delivery_note', 'Entrega en menos de 24 horas en La Habana')

@@ -17,21 +17,21 @@
 
 const ADMIN_EMAILS = [
   "serranoadrianr99@gmail.com",
-  "leslierrodriguezcontrera25@gmail.com",
+  "serranoadrianr99@gmail.com",
 ];
 
 const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || "AMA Store <onboarding@resend.dev>";
-const WA_NUMBER  = "5355542936";
+const WA_NUMBER  = "5351365501";
 
 // Si el remitente es onboarding@resend.dev (sin dominio verificado),
 // Resend solo permite enviar al dueño de la cuenta.
-// En ese caso enviamos solo a leslierrodriguezcontrera25@gmail.com
+// En ese caso enviamos solo a serranoadrianr99@gmail.com
 // (el email registrado en Resend). Una vez verificado un dominio,
 // se envía a todos los admins automáticamente.
 function getRecipientsForSender(fromEmail) {
   const isUnverifiedDomain = fromEmail.includes("onboarding@resend.dev");
   if (isUnverifiedDomain) {
-    return ["leslierrodriguezcontrera25@gmail.com"];
+    return ["serranoadrianr99@gmail.com"];
   }
   return ADMIN_EMAILS;
 }

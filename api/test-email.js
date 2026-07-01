@@ -40,7 +40,7 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         from:    fromEmail,
-        to:      fromEmail.includes("onboarding@resend.dev") ? ["leslierrodriguezcontrera25@gmail.com"] : ["serranoadrianr99@gmail.com", "leslierrodriguezcontrera25@gmail.com"],
+        to:      fromEmail.includes("onboarding@resend.dev") ? ["serranoadrianr99@gmail.com"] : ["serranoadrianr99@gmail.com", "serranoadrianr99@gmail.com"],
         subject: "✅ Prueba AMA Store — Notificaciones funcionando",
         html: `
           <div style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;padding:32px;background:#f7f3ec;border-radius:16px;">
@@ -79,7 +79,7 @@ export default async function handler(req, res) {
       ok: true,
       message: "✅ Email enviado — revisa la bandeja de entrada (y spam)",
       email_id: data.id,
-      sent_to:  ["serranoadrianr99@gmail.com", "leslierrodriguezcontrera25@gmail.com"],
+      sent_to:  ["serranoadrianr99@gmail.com", "serranoadrianr99@gmail.com"],
       config,
     });
 
